@@ -34,6 +34,7 @@ phonenumbers>=8.13.0
 pydantic>=2.5.0
 tqdm>=4.66.0
 colorama>=0.4.6
+schedule>=1.2.0
 
 # Optional: Machine Learning (for advanced features)
 scikit-learn>=1.3.0
