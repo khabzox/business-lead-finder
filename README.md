@@ -1,11 +1,6 @@
 # 🔍 Business Lead Finder
 
-A p#### 🍎 macOS Users
-
-```bash
-chmod +x setup.sh
-./setup.sh
-```ul, functional-architecture CLI tool designed to find local businesses without websites in Morocco. Built specifically for French-speaking businesses with intelligent lead scoring that prioritizes 2-3 star businesses (highest conversion opportunities).
+A powerful, functional-architecture CLI tool designed to find local businesses without websites in Morocco. Built specifically for French-speaking businesses with intelligent lead scoring that prioritizes 2-3 star businesses (highest conversion opportunities).
 
 ## 🚀 Super Quick Start (Any OS)
 
@@ -94,6 +89,9 @@ Business Lead Finder leverages modern functional programming architecture to hel
 
 ## 🗺️ Google Maps Integration
 
+<details>
+<summary><b>🚀 Click to expand Google Maps features and examples</b></summary>
+
 **Enhanced business discovery with automatic email extraction:**
 
 - **📧 Email Discovery**: Automatically extract business email addresses
@@ -116,6 +114,8 @@ python main.py search --location "Fez, Morocco" --categories spas --use-google-m
 ```
 
 📖 **Full Guide**: [GOOGLE_MAPS_CLI_GUIDE.md](docs/GOOGLE_MAPS_CLI_GUIDE.md)
+
+</details>
 
 ## ⚡ Quick Start
 
@@ -209,6 +209,9 @@ python main.py restaurants marrakech
 
 ## 🇲🇦 All Morocco Cities Support
 
+<details>
+<summary><b>🏙️ Click to expand all Morocco cities search options</b></summary>
+
 **NEW!** Search across ALL major Morocco cities with one command:
 
 ### Quick All-Cities Search
@@ -268,7 +271,12 @@ results/cities/
 └── [other cities]/searches/
 ```
 
+</details>
+
 ## 🖥️ CLI Commands Guide
+
+<details>
+<summary><b>💻 Click to expand CLI commands and usage examples</b></summary>
 
 ### Simple Commands (After Setup)
 
@@ -468,7 +476,12 @@ python main.py report --help
 python main.py export --help
 ```
 
+</details>
+
 ## 📊 Understanding Your Results
+
+<details>
+<summary><b>📈 Click to expand lead scoring and file outputs explanation</b></summary>
 
 ### Lead Scoring System
 
@@ -507,7 +520,12 @@ Each business gets a score from 0-100 based on:
 - Easy to sort and filter
 - Import into CRM systems
 
+</details>
+
 ## 🎯 Practical Workflow Examples
+
+<details>
+<summary><b>💼 Click to expand workflow examples and scenarios</b></summary>
 
 ### Scenario 1: New Market Research
 
@@ -551,7 +569,12 @@ python main.py report -i presentation_data.json -o client_presentation.html
 python main.py export -i presentation_data.json -o contact_list.csv -f csv
 ```
 
+</details>
+
 ## 🔧 Advanced Configuration
+
+<details>
+<summary><b>⚙️ Click to expand advanced configuration options</b></summary>
 
 ### Environment Variables
 
@@ -594,7 +617,12 @@ bf-search -l "Marrakesh, Morocco" -c restaurants
 bf-report -i leads.json -o report.html
 ```
 
+</details>
+
 ## 📁 Project Structure
+
+<details>
+<summary><b>🗂️ Click to expand project structure and file organization</b></summary>
 
 ```text
 business-lead-finder/
@@ -647,6 +675,8 @@ business-lead-finder/
 └── logs/                     # Application logs
     └── business_finder.log  # Main log file
 ```
+
+</details>
 
 ## 🆓 Free Implementation
 
