@@ -4,6 +4,16 @@
 
 ### Quick Commands to Get Started
 
+#### Method 1: Using BLF Command (After Setup)
+
+```bash
+blf massive marrakech               # Standard massive search
+blf mega marrakech                 # MEGA search
+blf demo                          # See features first
+```
+
+#### Method 2: Direct Python Commands
+
 ```bash
 # Quick test (1,000 businesses)
 python quick_marrakesh_search.py --test
@@ -16,6 +26,24 @@ python quick_marrakesh_search.py --mega
 
 # Setup automated weekly/monthly searches
 python quick_marrakesh_search.py --schedule
+```
+
+#### Method 3: Platform-Specific Scripts
+
+##### Windows
+
+```cmd
+# Command Prompt
+blf.bat massive marrakech
+
+# PowerShell  
+.\blf.ps1 massive marrakech
+```
+
+##### Linux/macOS/WSL/Git Bash
+
+```bash
+./blf massive marrakech
 ```
 
 ## 📊 What You'll Get

@@ -21,19 +21,38 @@ This tool supports comprehensive business searches across all major Morocco citi
 
 ## 🚀 Quick Start Options
 
-### Option 1: Interactive Mode (Recommended for Beginners)
+### Option 1: Using BLF Command (After Setup)
 
-**Windows Batch:**
+#### Search All Cities
+
 ```bash
+blf all-cities
+```
+
+#### Search Specific City
+
+```bash
+blf restaurants marrakech
+blf hotels casablanca
+blf cafes fez
+```
+
+### Option 2: Interactive Mode (Recommended for Beginners)
+
+#### Windows Batch
+
+```cmd
 quick_search.bat
 ```
 
-**PowerShell:**
-```bash
+#### PowerShell
+
+```powershell
 quick_search.ps1
 ```
 
-**Python:**
+#### Python Direct
+
 ```bash
 python quick_all_cities_search.py --interactive
 ```
@@ -44,9 +63,9 @@ python quick_all_cities_search.py --interactive
 - Guides you through the entire process
 - Perfect for first-time users
 
-### Option 2: Search Specific City
+### Option 3: Search Specific City
 
-**Windows Batch:**
+#### Windows Batch
 ```bash
 quick_city.bat marrakesh           # Standard search
 quick_city.bat casablanca mega     # MEGA search 

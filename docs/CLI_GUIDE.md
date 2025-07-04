@@ -1,16 +1,115 @@
-# CLI Commands Guide
+# 🖥️ CLI Commands Guide
 
-## Interactive Mode
+This guide covers all command-line interface options for the Business Lead Finder.
+
+## 🚀 Quick Start Commands
+
+### After Setup (Global `blf` command)
+
+```bash
+blf                          # Interactive mode
+blf restaurants marrakech    # Quick search
+blf demo                    # Feature demonstration
+blf --help                  # Show all options
+```
+
+### Without Setup (Direct Methods)
+
+#### Universal Python Method
+
+```bash
+python main.py              # Interactive mode
+python main.py restaurants marrakech    # Quick search
+python main.py demo         # Feature demonstration
+python main.py --help       # Show all options
+```
+
+#### Platform-Specific Scripts
+
+##### Windows Command Prompt
+
+```cmd
+blf.bat                     # Interactive mode
+blf.bat restaurants marrakech # Quick search
+blf.bat demo               # Feature demonstration
+```
+
+##### Windows PowerShell
+
+```powershell
+.\blf.ps1                  # Interactive mode
+.\blf.ps1 restaurants marrakech # Quick search
+.\blf.ps1 demo             # Feature demonstration
+```
+
+##### Linux/macOS/WSL/Git Bash
+
+```bash
+./blf                      # Interactive mode
+./blf restaurants marrakech # Quick search
+./blf demo                 # Feature demonstration
+```
+
+## 🔧 Setup Instructions
+
+Before using the CLI commands, you need to set up the Business Lead Finder. Choose the method that works best for your system:
+
+### Automatic Setup (Recommended)
+
+#### Windows Users
+
+```cmd
+# Command Prompt
+setup.bat
+
+# PowerShell
+.\setup.ps1
+
+# Git Bash/WSL
+chmod +x setup.sh
+./setup.sh
+```
+
+#### Linux/macOS Users
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### Manual Setup
+
+If the automatic setup doesn't work, you can still use the application by calling Python directly:
+
+```bash
+python main.py [command] [options]
+```
+
+This method works on any system with Python 3.8+ installed.
+
+### Verification
+
+Test your setup with:
+
+```bash
+blf demo                    # If setup worked
+python main.py demo         # If using manual method
+```
+
+## 🎯 Interactive Mode
 
 **Best for beginners** - Guided experience with prompts
 
 ```bash
-python main.py interactive
+blf
+# or
+python main.py
 ```
 
 **What it does:**
-- Prompts for location (configurable default)
-- Shows available categories 
+
+- Prompts for location (default: Marrakesh, Morocco)
+- Shows available categories (restaurants, hotels, cafes, etc.)  
 - Asks for number of results
 - Guides you through the entire process
 

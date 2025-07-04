@@ -12,34 +12,70 @@ Your Business Lead Finder CLI is now working! You have a fully functional comman
 
 ## 🚀 How to Use Your CLI
 
-### 1. **Interactive Mode** (Recommended for beginners)
+### Method 1: Using the `blf` Command (After Setup)
+
+#### Interactive Mode (Recommended for beginners)
+
 ```bash
-C:/Python312/python.exe main.py interactive
+blf
 ```
+
 **What it does:** Guides you through the process step-by-step
 
-### 2. **Search for Businesses**
+#### Quick Search
+
 ```bash
-C:/Python312/python.exe main.py search --location "Marrakesh, Morocco" --categories restaurants hotels --output results/my_leads.json
+blf restaurants marrakech
 ```
+
+**What it does:** Searches for restaurants in Marrakech quickly
+
+#### Demo Mode
+
+```bash
+blf demo
+```
+
+**What it does:** Shows all features with example data
+
+### Method 2: Direct Python Method (Universal)
+
+#### Interactive Mode
+
+```bash
+python main.py
+```
+
+#### Search for Businesses
+
+```bash
+python main.py search --location "Marrakesh, Morocco" --categories restaurants hotels --output results/my_leads.json
+```
+
 **What it does:** Searches for restaurants and hotels in Marrakesh and saves results
 
-### 3. **Generate HTML Report**
+#### Generate HTML Report
+
 ```bash
-C:/Python312/python.exe main.py report --input results/my_leads.json --output results/my_report.html
+python main.py report --input results/my_leads.json --output results/my_report.html
 ```
+
 **What it does:** Creates a beautiful HTML report you can open in your browser
 
-### 4. **Export to CSV**
+#### Export to CSV
+
 ```bash
-C:/Python312/python.exe main.py export --input results/my_leads.json --output results/my_leads.csv --format csv
+python main.py export --input results/my_leads.json --output results/my_leads.csv --format csv
 ```
+
 **What it does:** Exports data to Excel-compatible CSV format
 
-### 5. **Check Website Status**
+#### Check Website Status
+
 ```bash
-C:/Python312/python.exe main.py check --business-name "Restaurant Atlas" --phone "+212524443322"
+python main.py check --business-name "Restaurant Atlas" --phone "+212524443322"
 ```
+
 **What it does:** Checks if a specific business has a website
 
 ## 📊 Understanding Your Results

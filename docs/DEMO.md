@@ -1,6 +1,43 @@
 # Business Lead Finder - Feature Demonstrations
 
+## 🚀 Quick Demo
+
+The easiest way to see all features in action:
+
+### Method 1: After Setup
+
+```bash
+blf demo
+```
+
+### Method 2: Direct Python
+
+```bash
+python main.py demo
+```
+
+### Method 3: Platform-Specific
+
+#### Windows Command Prompt
+
+```cmd
+blf.bat demo
+```
+
+#### Windows PowerShell
+
+```powershell
+.\blf.ps1 demo
+```
+
+#### Linux/macOS/WSL/Git Bash
+
+```bash
+./blf demo
+```
+
 ## Overview
+
 This document provides links to all feature demonstrations and tests in the Business Lead Finder system. Each feature has its own dedicated folder with both implementation tests (.py) and documentation (.md).
 
 ## 🎯 Key Insight: Low-Rated Businesses Are High-Opportunity Leads

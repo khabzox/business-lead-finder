@@ -2,15 +2,46 @@
 
 Welcome to the Business Lead Finder! This guide will get you up and running in minutes to start finding high-quality business leads in Morocco.
 
-## ⚡ Super Quick Start (30 seconds)
+## ⚡ Super Quick Start (Cross-Platform)
 
-### 1. One-Command Setup
+### Step 1: Choose Setup Method Based on Your System
 
-```bash
+#### 🖥️ Windows Users
+
+##### Option A: Command Prompt
+
+```cmd
 setup.bat
 ```
 
-### 2. Start Finding Leads
+##### Option B: PowerShell
+
+```powershell
+.\setup.ps1
+```
+
+##### Option C: Git Bash/WSL
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+#### 🐧 Linux Users
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+#### 🍎 macOS Users
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### Step 2: Start Finding Leads (Works After Any Setup)
 
 ```bash
 # Interactive mode (best for beginners)
@@ -25,6 +56,41 @@ blf cafes casablanca
 # See all features
 blf demo
 ```
+
+### Step 3: If Setup Fails - Manual Methods
+
+#### Universal Python Method (Works on Any OS)
+
+```bash
+python main.py restaurants marrakech
+python main.py demo
+python main.py --help
+```
+
+#### Platform-Specific Direct Commands
+
+##### Windows Command Prompt
+
+```cmd
+blf.bat restaurants marrakech
+blf.bat demo
+```
+
+##### Windows PowerShell
+
+```powershell
+.\blf.ps1 restaurants marrakech
+.\blf.ps1 demo
+```
+
+##### Linux/macOS/WSL/Git Bash
+
+```bash
+./blf restaurants marrakech
+./blf demo
+```
+
+*Note: On Linux/macOS, you may need to run `chmod +x blf` first.*
 
 ## 🎯 What You'll Get
 

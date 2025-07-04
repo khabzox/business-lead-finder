@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# Business Lead Finder - Cross-platform launcher
+# This script automatically detects the environment and runs the appropriate Python command
+
+# Get the directory where this script is located
+BLF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to the BLF directory
+cd "$BLF_DIR"
+
+# Function to find Python executable
+find_python() {
+    # Common Python installation paths for different systems
+    local python_paths=(
+        # Standard commands (try first)
+        "python3"
+        "python"
+        # Windows common paths
+        "/c/Python*/python.exe"
+        "/c/Program Files/Python*/python.exe"
+        "/c/Users/*/AppData/Local/Programs/Python/Python*/python.exe"
+        # Linux/macOS common paths
+        "/usr/bin/python3"
+        "/usr/local/bin/python3"
+        "/opt/python*/bin/python3"
+        # Homebrew (macOS)
+        "/usr/local/Cellar/python*/bin/python3"
+        "/opt/homebrew/bin/python3"
+        # Conda environments
+        "~/anaconda3/bin/python"
+        "~/miniconda3/bin/python"
+    )
+    
+    # First try standard commands that should work if PATH is set correctly
+    for cmd in python3 python; do
+        if command -v "$cmd" &> /dev/null; then
+            # Test if it's the Windows Store stub (returns error message)
+            if "$cmd" --version 2>&1 | grep -q "Microsoft Store"; then
+                continue  # Skip Windows Store stub
+            fi
+            # Test if it actually works
+            if "$cmd" --version &> /dev/null; then
+                echo "$cmd"
+                return 0
+            fi
+        fi
+    done
+    
+    # If standard commands don't work, try direct paths
+    for path_pattern in "${python_paths[@]:2}"; do
+        # Expand wildcards
+        for python_path in $path_pattern; do
+            if [[ -f "$python_path" ]] && [[ -x "$python_path" ]]; then
+                # Test if it works
+                if "$python_path" --version &> /dev/null; then
+                    echo "$python_path"
+                    return 0
+                fi
+            fi
+        done
+    done
+    
+    return 1
+}
+
+# Find Python
+PYTHON_CMD=$(find_python)
+
+if [[ -z "$PYTHON_CMD" ]]; then
+    echo "❌ Python not found!"
+    echo ""
+    echo "Please install Python 3.8+ from one of these sources:"
+    echo "  • Windows: https://python.org/downloads/ or 'winget install Python.Python.3'"
+    echo "  • macOS: https://python.org/downloads/ or 'brew install python'"
+    echo "  • Linux: 'sudo apt install python3' or 'sudo yum install python3'"
+    echo ""
+    echo "Alternative: Run directly with: python main.py $*"
+    exit 1
+fi
+
+# Run the main script with all passed arguments
+exec "$PYTHON_CMD" main.py "$@"

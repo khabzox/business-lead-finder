@@ -1,16 +1,47 @@
 # 🔍 Business Lead Finder
 
-A powerful, functional-architecture CLI tool designed to find local businesses without websites in Morocco. Built specifically for French-speaking businesses with intelligent lead scoring that prioritizes 2-3 star businesses (highest conversion opportunities).
-
-## 🚀 Super Quick Start
-
-**1. One-Command Setup:**
+A p#### 🍎 macOS Users
 
 ```bash
+chmod +x setup.sh
+./setup.sh
+```ul, functional-architecture CLI tool designed to find local businesses without websites in Morocco. Built specifically for French-speaking businesses with intelligent lead scoring that prioritizes 2-3 star businesses (highest conversion opportunities).
+
+## 🚀 Super Quick Start (Any OS)
+
+### Step 1: Choose Your Setup Method
+
+#### 🖥️ **Windows Users**
+
+**Option A: Command Prompt**
+```cmd
 setup.bat
 ```
 
-**2. Start Finding Leads Immediately:**
+**Option B: PowerShell**
+```powershell
+.\setup.ps1
+```
+
+**Option C: Git Bash/WSL**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+#### 🐧 **Linux Users**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+#### � **macOS Users**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### Step 2: Start Finding Leads Immediately
 
 ```bash
 blf                          # Interactive mode with guided prompts
@@ -19,7 +50,36 @@ blf cafes casablanca        # Find cafes in economic capital
 blf demo                    # Comprehensive feature demonstration
 ```
 
-✅ **Done!** See [QUICK_START.md](docs/QUICK_START.md) for detailed instructions.
+### Step 3: If Setup Fails - Alternative Methods
+
+#### Option A: Direct Python Method (Works Everywhere)
+```bash
+python main.py restaurants marrakech    # Direct Python execution
+python main.py demo                     # Run demo
+python main.py --help                   # Show all options
+```
+
+#### Option B: Platform-Specific Commands
+
+**Windows Command Prompt:**
+```cmd
+blf.bat restaurants marrakech
+blf.bat demo
+```
+
+**Windows PowerShell:**
+```powershell
+.\blf.ps1 restaurants marrakech
+.\blf.ps1 demo
+```
+
+**Linux/macOS/WSL/Git Bash:**
+```bash
+./blf restaurants marrakech
+./blf demo
+```
+
+✅ **Done!** See [QUICK_START.md](docs/QUICK_START.md) for detailed step-by-step instructions.
 
 ## 🎯 Project Overview
 
@@ -94,26 +154,44 @@ blf cafes casablanca        # Find cafes
 blf demo                    # Run demo
 ```
 
-### Alternative Ways to Run
+### Alternative Ways to Run (If Setup Fails)
 
-#### Method 1: Short batch command
+#### Method 1: Direct Python (Works on Any OS)
 
 ```bash
+python main.py              # Interactive mode
+python main.py restaurants marrakech    # Quick search
+python main.py demo         # Feature demonstration
+python main.py --help       # Show all options
+```
+
+#### Method 2: Platform-Specific Scripts (No Setup Required)
+
+##### Windows Command Prompt:
+
+```cmd
 blf.bat                      # Interactive mode
 blf.bat restaurants marrakech # Quick search
+blf.bat demo                 # Run demo
 ```
 
-#### Method 2: Python launcher
+##### Windows PowerShell:
+
+```powershell
+.\blf.ps1                   # Interactive mode
+.\blf.ps1 restaurants marrakech # Quick search
+.\blf.ps1 demo              # Run demo
+```
+
+##### Linux/macOS/WSL/Git Bash:
 
 ```bash
-python blf.py               # Quick launcher
+./blf                       # Interactive mode (if executable)
+./blf restaurants marrakech # Quick search
+./blf demo                  # Run demo
 ```
 
-#### Method 3: Traditional method
-
-```bash
-python main.py              # Standard way
-```
+*Note: On Linux/macOS, you may need to run `chmod +x blf` first to make it executable.*
 
 ### First Run
 
