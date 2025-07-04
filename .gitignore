@@ -133,9 +133,14 @@ results/*.json
 results/*.csv
 results/*.html
 results/*.pdf
+results/cities/*/searches/*.json
+results/cities/*/analytics/*.json
+results/cities/*/reports/*.html
+results/cities/*/exports/*.csv
 !results/sample_leads.json
 !results/leads_report.html
 !results/leads.csv
+!results/cities/*/README.md
 
 # Logs
 logs/
