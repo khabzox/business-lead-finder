@@ -6,8 +6,9 @@ import os
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from .env.local and .env files
+load_dotenv('.env.local')
+load_dotenv('.env')
 
 # API Configuration
 API_KEYS = {
@@ -16,6 +17,7 @@ API_KEYS = {
     'yelp': os.getenv('YELP_API_KEY'),
     'foursquare_client_id': os.getenv('FOURSQUARE_CLIENT_ID'),
     'foursquare_client_secret': os.getenv('FOURSQUARE_CLIENT_SECRET'),
+    'groq': os.getenv('GROQ_API_KEY'),
 }
 
 # Search Configuration
@@ -117,9 +119,29 @@ VALIDATION_RULES = {
     'max_lead_score': 100,
 }
 
+def load_config() -> Dict[str, Any]:
+    """Load complete configuration with API keys."""
+    config = DEFAULT_SETTINGS.copy()
+    
+    # Add API keys
+    config['api_keys'] = {
+        'serpapi': API_KEYS['serpapi'],
+        'foursquare': API_KEYS['foursquare_client_id'],
+        'foursquare_secret': API_KEYS['foursquare_client_secret'],
+        'groq': API_KEYS['groq'],
+        'google_places': API_KEYS['google_places'],
+        'yelp': API_KEYS['yelp'],
+    }
+    
+    # Add Groq configuration
+    config['groq_api_key'] = API_KEYS['groq']
+    config['groq_model'] = os.getenv('GROQ_MODEL', 'llama3-8b-8192')
+    
+    return config
+
 def get_config() -> Dict[str, Any]:
     """Get complete configuration dictionary."""
-    return DEFAULT_SETTINGS
+    return load_config()
 
 def validate_config() -> bool:
     """Validate configuration settings."""
@@ -144,4 +166,5 @@ def get_api_status() -> Dict[str, bool]:
         'serpapi': bool(API_KEYS['serpapi']),
         'google_places': bool(API_KEYS['google_places']),
         'yelp': bool(API_KEYS['yelp']),
+        'groq': bool(API_KEYS['groq']),
     }

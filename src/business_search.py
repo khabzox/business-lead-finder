@@ -182,7 +182,7 @@ def extract_business_from_osm(place: Dict[str, Any]) -> Optional[Dict[str, Any]]
         return None
 
 @rate_limit(seconds=1)
-def search_foursquare(query: str, location: str, max_results: int = 20) -> List[Dict[str, Any]]:
+def search_foursquare(query: str, location: str, max_results: int = 20, config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """
     Search businesses using Foursquare Places API (free tier).
     
@@ -190,6 +190,7 @@ def search_foursquare(query: str, location: str, max_results: int = 20) -> List[
         query: Business category or type
         location: Location to search
         max_results: Maximum number of results
+        config: Configuration dictionary with API keys
     
     Returns:
         List of business dictionaries
@@ -197,8 +198,19 @@ def search_foursquare(query: str, location: str, max_results: int = 20) -> List[
     businesses = []
     
     try:
+        # Get API key from config or environment
+        client_id = None
+        if config and config.get('api_keys', {}).get('foursquare'):
+            client_id = config['api_keys']['foursquare']
+        elif API_KEYS.get('foursquare_client_id'):
+            client_id = API_KEYS['foursquare_client_id']
+        
+        if not client_id:
+            logger.warning("Foursquare client ID not configured")
+            return businesses
+        
         headers = {
-            'Authorization': API_KEYS['foursquare_client_id'],
+            'Authorization': client_id,
             'Accept': 'application/json'
         }
         
@@ -259,7 +271,7 @@ def extract_business_from_foursquare(place: Dict[str, Any]) -> Optional[Dict[str
         return None
 
 @rate_limit(seconds=2)
-def search_serpapi(query: str, location: str, max_results: int = 20) -> List[Dict[str, Any]]:
+def search_serpapi(query: str, location: str, max_results: int = 20, config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """
     Search businesses using SerpAPI (free tier - 100 searches/month).
     
@@ -267,6 +279,7 @@ def search_serpapi(query: str, location: str, max_results: int = 20) -> List[Dic
         query: Business category or type
         location: Location to search
         max_results: Maximum number of results
+        config: Configuration dictionary with API keys
     
     Returns:
         List of business dictionaries
@@ -274,10 +287,21 @@ def search_serpapi(query: str, location: str, max_results: int = 20) -> List[Dic
     businesses = []
     
     try:
+        # Get API key from config or environment
+        api_key = None
+        if config and config.get('api_keys', {}).get('serpapi'):
+            api_key = config['api_keys']['serpapi']
+        elif API_KEYS.get('serpapi'):
+            api_key = API_KEYS['serpapi']
+        
+        if not api_key:
+            logger.warning("SerpAPI key not configured")
+            return businesses
+        
         params = {
             'engine': 'google_maps',
             'q': f"{query} {location}",
-            'api_key': API_KEYS['serpapi'],
+            'api_key': api_key,
             'num': min(max_results, 20)  # SerpAPI limit
         }
         

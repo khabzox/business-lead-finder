@@ -5,14 +5,14 @@ Handles command-line interface commands and user interactions.
 
 import argparse
 import sys
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt, Confirm
 
-from business_search import search_businesses_all_sources
+from business_search import search_businesses_all_sources, remove_duplicates
 from website_checker import check_website_status
 from report_generator import generate_report
 from data_processor import export_data, analyze_leads
@@ -27,10 +27,12 @@ def create_cli_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  python main.py search --location "Marrakesh, Morocco" --categories restaurants hotels
+  python main.py search --location "Marrakesh, Morocco" --categories restaurants --filter no-website
+  python main.py search --location "Casablanca, Morocco" --categories hotels spas --ai-analysis
+  python main.py search --location "Rabat, Morocco" --categories cafes --filter bad-website --sort-by rating
   python main.py check --business-name "Restaurant Atlas" --phone "+212524443322"
   python main.py report --input data/leads.json --output results/report.html
-  python main.py export --format csv --output results/leads.csv
+  python main.py export --format csv --output results/leads.csv --filter "no_website=true"
   python main.py analyze --input data/leads.json
   python main.py interactive
         '''
@@ -51,6 +53,11 @@ Examples:
     search_parser.add_argument('--max-results', '-m', type=int, default=50, help='Maximum results per category')
     search_parser.add_argument('--output', '-o', help='Output file path')
     search_parser.add_argument('--format', choices=['json', 'csv'], default='json', help='Output format')
+    search_parser.add_argument('--filter', choices=['no-website', 'bad-website', 'all'], default='all', 
+                             help='Filter results: no-website (no website), bad-website (poor website), all (no filter)')
+    search_parser.add_argument('--ai-analysis', action='store_true', help='Enable AI-powered analysis with Groq')
+    search_parser.add_argument('--sort-by', choices=['lead-score', 'rating', 'name'], default='lead-score',
+                             help='Sort results by specified field')
     
     # Check command
     check_parser = subparsers.add_parser('check', help='Check if a business has a website')
@@ -106,9 +113,13 @@ def handle_cli_command(args: argparse.Namespace, config: Dict[str, Any]) -> bool
         return False
 
 def handle_search_command(args: argparse.Namespace, config: Dict[str, Any]) -> bool:
-    """Handle search command."""
+    """Handle search command with enhanced filtering and AI analysis."""
     console.print(f"[blue]🔍 Searching for businesses in: {args.location}[/blue]")
     console.print(f"[blue]📊 Categories: {', '.join(args.categories)}[/blue]")
+    console.print(f"[blue]🎯 Filter: {args.filter}[/blue]")
+    
+    if args.ai_analysis:
+        console.print("[blue]🤖 AI Analysis: Enabled[/blue]")
     
     # Validate inputs
     location = validate_location(args.location)
@@ -134,12 +145,31 @@ def handle_search_command(args: argparse.Namespace, config: Dict[str, Any]) -> b
             all_results.extend(results)
             progress.advance(task)
     
+    # Remove duplicates
+    unique_results = remove_duplicates(all_results)
+    
+    # Apply filters
+    filtered_results = apply_search_filters(unique_results, args.filter)
+    
+    # Sort results
+    sorted_results = sort_results(filtered_results, args.sort_by)
+    
+    # AI Analysis if requested
+    if args.ai_analysis:
+        console.print("[blue]🤖 Starting AI analysis...[/blue]")
+        try:
+            from ai_assistant import batch_analyze_businesses
+            sorted_results = batch_analyze_businesses(sorted_results)
+            console.print("[green]✅ AI analysis completed[/green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️ AI analysis failed: {e}[/yellow]")
+    
     # Display results
-    display_search_results(all_results)
+    display_search_results(sorted_results, args.filter)
     
     # Save results if output specified
     if args.output:
-        save_search_results(all_results, args.output, args.format)
+        save_search_results(sorted_results, args.output, args.format)
         console.print(f"[green]✅ Results saved to: {args.output}[/green]")
     
     return True
@@ -272,43 +302,128 @@ def handle_interactive_command(args: argparse.Namespace, config: Dict[str, Any])
     
     return True
 
-def display_search_results(results: list):
-    """Display search results in a formatted table."""
+def apply_search_filters(results: List[Dict[str, Any]], filter_type: str) -> List[Dict[str, Any]]:
+    """Apply search filters to results."""
+    if filter_type == 'no-website':
+        return [r for r in results if not r.get('website')]
+    elif filter_type == 'bad-website':
+        return [r for r in results if r.get('website') and r.get('website_quality_score', 100) < 50]
+    else:  # 'all'
+        return results
+
+def sort_results(results: List[Dict[str, Any]], sort_by: str) -> List[Dict[str, Any]]:
+    """Sort results by specified field."""
+    if sort_by == 'lead-score':
+        return sorted(results, key=lambda x: x.get('lead_score', 0), reverse=True)
+    elif sort_by == 'rating':
+        return sorted(results, key=lambda x: x.get('rating', 0), reverse=True)
+    elif sort_by == 'name':
+        return sorted(results, key=lambda x: x.get('name', '').lower())
+    else:
+        return results
+
+def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'all') -> None:
+    """Display search results in organized format."""
     if not results:
-        console.print("[yellow]No businesses found.[/yellow]")
+        console.print("[red]❌ No businesses found matching your criteria.[/red]")
         return
     
-    table = Table(title=f"Business Search Results ({len(results)} found)")
+    # Summary stats
+    total_results = len(results)
+    no_website_count = len([r for r in results if not r.get('website')])
+    avg_lead_score = sum(r.get('lead_score', 0) for r in results) / total_results if total_results > 0 else 0
     
-    table.add_column("Name", style="cyan", no_wrap=True)
-    table.add_column("Category", style="magenta")
-    table.add_column("Address", style="white")
-    table.add_column("Phone", style="green")
-    table.add_column("Website", style="red")
-    table.add_column("Score", justify="right", style="blue")
+    # Display summary
+    console.print(f"\n[bold green]📊 SEARCH RESULTS SUMMARY[/bold green]")
+    console.print(f"[green]Total Businesses Found: {total_results}[/green]")
+    console.print(f"[yellow]Without Website: {no_website_count} ({no_website_count/total_results*100:.1f}%)[/yellow]")
+    console.print(f"[blue]Average Lead Score: {avg_lead_score:.1f}/100[/blue]")
     
-    for business in results[:50]:  # Show first 50 results
-        website_status = "✅ Yes" if business.get('website') else "❌ No"
+    # Filter-specific messages
+    if filter_type == 'no-website':
+        console.print(f"[bold yellow]🎯 HIGH OPPORTUNITY: All {total_results} businesses have NO WEBSITE![/bold yellow]")
+    elif filter_type == 'bad-website':
+        console.print(f"[bold orange]🔧 IMPROVEMENT OPPORTUNITY: {total_results} businesses have poor websites![/bold orange]")
+    
+    # Display top results
+    console.print(f"\n[bold blue]🏆 TOP OPPORTUNITIES[/bold blue]")
+    
+    # Create table for results
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Rank", style="dim", width=6)
+    table.add_column("Business Name", style="bold")
+    table.add_column("Category", style="cyan")
+    table.add_column("Rating", style="yellow")
+    table.add_column("Lead Score", style="green")
+    table.add_column("Website Status", style="red")
+    table.add_column("Opportunity", style="bold red")
+    
+    for i, business in enumerate(results[:20], 1):  # Show top 20
+        name = business.get('name', 'Unknown')[:30]
+        category = business.get('category', 'Unknown')[:15]
+        rating = f"{business.get('rating', 0):.1f}⭐" if business.get('rating') else 'N/A'
+        lead_score = f"{business.get('lead_score', 0)}/100"
+        
+        # Website status
+        if business.get('website'):
+            website_status = "✅ Has Website"
+            opportunity = "Website Upgrade"
+        else:
+            website_status = "❌ NO WEBSITE"
+            opportunity = "🔥 HIGH PRIORITY"
+        
         table.add_row(
-            business.get('name', 'N/A')[:30],
-            business.get('category', 'N/A'),
-            business.get('address', 'N/A')[:40],
-            business.get('phone', 'N/A'),
+            str(i),
+            name,
+            category,
+            rating,
+            lead_score,
             website_status,
-            str(business.get('lead_score', 0))
+            opportunity
         )
     
     console.print(table)
     
-    # Summary statistics
-    total_businesses = len(results)
-    businesses_without_websites = len([b for b in results if not b.get('website')])
-    high_score_leads = len([b for b in results if b.get('lead_score', 0) >= 70])
+    # Show AI insights if available
+    ai_businesses = [b for b in results if b.get('ai_analysis')]
+    if ai_businesses:
+        console.print(f"\n[bold blue]🤖 AI INSIGHTS[/bold blue]")
+        for business in ai_businesses[:3]:  # Show top 3 AI insights
+            ai_data = business.get('ai_analysis', {})
+            if 'ai_analysis' in ai_data:
+                console.print(f"[bold cyan]{business.get('name', 'Unknown')}:[/bold cyan]")
+                console.print(f"  {ai_data['ai_analysis'][:200]}...")
+                console.print()
     
-    console.print(f"\n[bold]📊 Summary:[/bold]")
-    console.print(f"• Total businesses: {total_businesses}")
-    console.print(f"• Without websites: {businesses_without_websites} ({businesses_without_websites/total_businesses*100:.1f}%)")
-    console.print(f"• High-score leads: {high_score_leads} ({high_score_leads/total_businesses*100:.1f}%)")
+    # Contact information for top opportunities
+    console.print(f"\n[bold green]📞 CONTACT INFORMATION (Top 5)[/bold green]")
+    contact_table = Table(show_header=True, header_style="bold green")
+    contact_table.add_column("Business", style="bold")
+    contact_table.add_column("Phone", style="blue")
+    contact_table.add_column("Address", style="dim")
+    contact_table.add_column("Email Template", style="cyan")
+    
+    for business in results[:5]:
+        name = business.get('name', 'Unknown')[:25]
+        phone = business.get('phone', 'N/A')
+        address = business.get('address', 'N/A')[:30]
+        
+        # Check if AI generated email is available
+        has_ai_email = business.get('personalized_email', False)
+        email_status = "🤖 AI Generated" if has_ai_email else "📧 Standard"
+        
+        contact_table.add_row(name, phone, address, email_status)
+    
+    console.print(contact_table)
+    
+    if filter_type == 'no-website':
+        console.print(f"\n[bold yellow]💡 NEXT STEPS:[/bold yellow]")
+        console.print("1. Contact businesses with highest lead scores first")
+        console.print("2. Use provided phone numbers for direct contact")
+        console.print("3. Reference their excellent ratings in your pitch")
+        console.print("4. Emphasize missed online opportunities")
+    
+    console.print(f"\n[green]✅ Search completed successfully![/green]")
 
 def display_website_check_results(business_name: str, website_status: Dict[str, Any]):
     """Display website check results."""

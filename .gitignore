@@ -230,3 +230,25 @@ node_modules/
 !docs/examples/
 !templates/
 !.env.example
+
+# Business Lead Finder - Additional Output Exclusions
+
+# Demo and Result Directories
+demo_results/
+sample_data.json
+test_data.json
+analysis_report.json
+*_leads.json
+*_report.html
+*_analysis.json
+
+# AI Generated Content
+ai_analysis/
+personalized_emails/
+groq_responses/
+
+# Export Files
+*.vcf
+leads_*.csv
+business_*.xlsx
+report_*.pdf
