@@ -7,7 +7,14 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 from groq import Groq
-from config.settings import load_config
+try:
+    from .config.settings import load_config
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent))
+    from config.settings import load_config
 
 logger = logging.getLogger(__name__)
 

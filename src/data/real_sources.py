@@ -14,7 +14,14 @@ from urllib.parse import urlencode, quote
 import json
 from datetime import datetime, timedelta
 
-from ..core.config import config, API_CONFIG, SEARCH_CONFIG
+try:
+    from ..core.config import config, API_CONFIG, SEARCH_CONFIG
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from core.config import config, API_CONFIG, SEARCH_CONFIG
 
 logger = logging.getLogger(__name__)
 

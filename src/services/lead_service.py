@@ -11,10 +11,20 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from ..data.real_sources import real_data_collector, BusinessData
-from ..core.config import config, SCORING_CONFIG, SEARCH_CONFIG
-from ..website_checker import enhanced_website_detection
-from ..business_search import calculate_lead_score
+try:
+    from ..data.real_sources import real_data_collector, BusinessData
+    from ..core.config import config, SCORING_CONFIG, SEARCH_CONFIG
+    from ..website_checker import enhanced_website_detection
+    from ..business_search import calculate_lead_score
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from data.real_sources import real_data_collector, BusinessData
+    from core.config import config, SCORING_CONFIG, SEARCH_CONFIG
+    from website_checker import enhanced_website_detection
+    from business_search import calculate_lead_score
 
 logger = logging.getLogger(__name__)
 
