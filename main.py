@@ -460,16 +460,28 @@ def quick_search(category: str, location: str, max_results: int = 10):
     # Create results table
     table = Table(title=f"{category.title()} in {location.title()} - Lead Analysis")
     table.add_column("Business", style="cyan", no_wrap=True)
+    table.add_column("City", style="dim", justify="center")
     table.add_column("Rating", justify="center")
     table.add_column("Website", justify="center")
     table.add_column("Phone", justify="center")
     table.add_column("Lead Score", justify="center", style="bold")
     table.add_column("Priority", justify="center")
     
-    for business in scored_businesses[:10]:  # Show top 10
+    for business in scored_businesses[:20]:  # Show top 20
         rating = f"{business.get('rating', 0):.1f}⭐" if business.get('rating') else "No rating"
         website = "✅" if business.get('website') else "❌"
         phone = "✅" if business.get('phone') else "❌"
+        
+        # Extract city from address or use the search location
+        city = location
+        if business.get('address'):
+            # Try to extract city from address
+            address_parts = business['address'].split(',')
+            if len(address_parts) > 1:
+                # Usually city is in the last parts of address
+                potential_city = address_parts[-2].strip() if len(address_parts) > 2 else address_parts[-1].strip()
+                if potential_city and len(potential_city) < 30:  # Reasonable city name length
+                    city = potential_city
         
         # Priority based on score
         score = business['lead_score']
@@ -482,6 +494,7 @@ def quick_search(category: str, location: str, max_results: int = 10):
         
         table.add_row(
             business['name'][:30],
+            city[:15],  # Limit city display length
             rating,
             website,
             phone,
@@ -496,10 +509,13 @@ def quick_search(category: str, location: str, max_results: int = 10):
     no_website = [b for b in scored_businesses if not b.get('website')]
     low_rated = [b for b in scored_businesses if b.get('rating') and 2.0 <= b['rating'] <= 3.5]
     
-    console.print(f"\n[bold]📊 Lead Analysis:[/bold]")
+    console.print(f"\n[bold]📊 Lead Analysis ({len(scored_businesses)} businesses found):[/bold]")
     console.print(f"• High priority leads: [bold red]{len(high_leads)}[/bold red]")
     console.print(f"• Businesses without websites: [bold yellow]{len(no_website)}[/bold yellow]")
     console.print(f"• Low-rated businesses (2-3.5⭐): [bold yellow]{len(low_rated)}[/bold yellow]")
+    
+    if len(scored_businesses) > 20:
+        console.print(f"[dim]Showing top 20 results out of {len(scored_businesses)} total businesses.[/dim]")
     
     if high_leads:
         console.print(f"\n[bold green]🎯 Top Opportunity:[/bold green] {high_leads[0]['name']}")
