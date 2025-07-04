@@ -642,3 +642,46 @@ def enhance_business_data(businesses: List[Dict[str, Any]]) -> List[Dict[str, An
             enhanced_businesses.append(business)
     
     return enhanced_businesses
+
+def update_business_with_enhanced_website_check(business: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update business data with enhanced website detection.
+    
+    Args:
+        business: Business dictionary
+    
+    Returns:
+        Updated business dictionary with website information
+    """
+    if not business.get('name'):
+        return business
+    
+    # Run enhanced website search
+    website_result = enhanced_website_search(
+        business_name=business['name'],
+        category=business.get('category', ''),
+        config={}
+    )
+    
+    # Update business data
+    if website_result['website_found']:
+        business['website'] = website_result['website_url']
+        business['website_quality_score'] = website_result['quality_score']
+        business['website_detection_method'] = 'enhanced_ai'
+        business['website_domains_checked'] = website_result['domains_checked']
+        business['website_title'] = website_result['details'].get('title', '')
+        
+        # Adjust lead score - businesses with websites have lower priority
+        if business.get('lead_score', 0) > 0:
+            business['lead_score'] = max(business['lead_score'] - 20, 0)
+    else:
+        # No website found - high opportunity
+        business['website'] = ''
+        business['website_detection_method'] = 'enhanced_ai'
+        business['website_domains_checked'] = website_result['domains_checked']
+        
+        # Boost lead score for businesses without websites
+        if business.get('lead_score', 0) > 0:
+            business['lead_score'] = min(business['lead_score'] + 15, 100)
+    
+    return business

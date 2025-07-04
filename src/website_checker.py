@@ -45,8 +45,62 @@ def check_website_status(business_data: Dict[str, Any]) -> Dict[str, Any]:
         'website_quality_score': 0,
         'social_media_profiles': [],
         'detection_method': None,
-        'confidence_score': 0
+        'confidence_score': 0,
+        'potential_domains': []
     }
+    
+    business_name = business_data.get('name', '')
+    phone = business_data.get('phone', '')
+    address = business_data.get('address', '')
+    existing_website = business_data.get('website', '')
+    
+    # Method 1: Check existing website URL if provided
+    if existing_website:
+        website_info = validate_website_url(existing_website)
+        if website_info['is_valid']:
+            result['has_website'] = True
+            result['website_url'] = existing_website
+            result['website_quality_score'] = website_info['quality_score']
+            result['detection_method'] = 'provided_url'
+            result['confidence_score'] = 95
+            return result
+    
+    # Method 2: Generate and test potential domain names
+    potential_domains = generate_potential_domains(business_name)
+    result['potential_domains'] = potential_domains
+    
+    for domain in potential_domains:
+        logger.info(f"Testing domain: {domain}")
+        website_info = test_domain_availability(domain)
+        if website_info['exists']:
+            result['has_website'] = True
+            result['website_url'] = website_info['url']
+            result['website_quality_score'] = website_info['quality_score']
+            result['detection_method'] = 'domain_guessing'
+            result['confidence_score'] = website_info['confidence']
+            break
+    
+    # Method 3: Google search for business website
+    if not result['has_website']:
+        google_result = search_business_website(business_name, address)
+        if google_result['found']:
+            result['has_website'] = True
+            result['website_url'] = google_result['url']
+            result['website_quality_score'] = google_result['quality_score']
+            result['detection_method'] = 'google_search'
+            result['confidence_score'] = google_result['confidence']
+    
+    # Method 4: Check for social media presence
+    social_profiles = find_social_media_profiles(business_name)
+    result['social_media_profiles'] = social_profiles
+    
+    # If no website but has social media, adjust confidence
+    if not result['has_website'] and social_profiles:
+        result['confidence_score'] = 90  # High confidence they don't have website
+    elif not result['has_website']:
+        result['confidence_score'] = 85  # Medium-high confidence
+    
+    return result
     
     try:
         business_name = business_data.get('name', '')
@@ -429,601 +483,627 @@ def search_single_directory(
     
     return result
 
-def guess_business_domains(business_name: str) -> List[str]:
-    """Generate potential domain names for a business."""
-    domains = []
-    
-    # Clean business name
-    clean_name = re.sub(r'[^\w\s]', '', business_name.lower())
-    words = clean_name.split()
-    
-    # Remove common business words
-    business_words = ['restaurant', 'hotel', 'cafe', 'spa', 'shop', 'store', 'bar']
-    filtered_words = [word for word in words if word not in business_words]
-    
-    if not filtered_words:
-        filtered_words = words  # Use all words if none left
-    
-    # Generate domain patterns
-    base_name = ''.join(filtered_words)
-    hyphen_name = '-'.join(filtered_words)
-    
-    # Common TLDs
-    tlds = ['.com', '.ma', '.net', '.org']
-    
-    for tld in tlds:
-        domains.extend([
-            f"{base_name}{tld}",
-            f"{hyphen_name}{tld}",
-            f"www.{base_name}{tld}",
-            f"{base_name}-marrakech{tld}",
-            f"{base_name}-morocco{tld}"
-        ])
-    
-    return domains
-
-def verify_domain_belongs_to_business(domain: str, business_name: str) -> bool:
-    """Verify if a domain belongs to the specified business."""
-    try:
-        # Add protocol if missing
-        if not domain.startswith(('http://', 'https://')):
-            domain = f"https://{domain}"
-        
-        response = requests.get(domain, timeout=10, allow_redirects=True)
-        
-        if response.status_code == 200:
-            return validate_website_content(response.text, business_name)
-        
-        return False
-    except:
-        return False
-
-def validate_website_belongs_to_business(website_url: str, business_name: str) -> Dict[str, Any]:
-    """Validate if website actually belongs to the business."""
-    result = {
-        'is_valid': False,
-        'confidence_boost': 0,
-        'validation_details': {}
-    }
-    
-    try:
-        # Add protocol if missing
-        if not website_url.startswith(('http://', 'https://')):
-            website_url = f"https://{website_url}"
-        
-        response = requests.get(website_url, timeout=15, allow_redirects=True)
-        
-        if response.status_code == 200:
-            content = response.text.lower()
-            soup = BeautifulSoup(content, 'html.parser')
-            
-            # Check for business name in various places
-            business_keywords = business_name.lower().split()
-            
-            # Title check
-            title = soup.find('title')
-            title_matches = 0
-            if title:
-                title_text = title.get_text().lower()
-                title_matches = sum(1 for keyword in business_keywords if keyword in title_text)
-            
-            # Content check
-            content_matches = sum(1 for keyword in business_keywords if keyword in content)
-            
-            # Meta description check
-            meta_desc = soup.find('meta', {'name': 'description'})
-            meta_matches = 0
-            if meta_desc:
-                meta_text = meta_desc.get('content', '').lower()
-                meta_matches = sum(1 for keyword in business_keywords if keyword in meta_text)
-            
-            # Calculate confidence
-            total_keywords = len(business_keywords)
-            if total_keywords > 0:
-                title_score = (title_matches / total_keywords) * 30
-                content_score = min((content_matches / total_keywords) * 50, 50)
-                meta_score = (meta_matches / total_keywords) * 20
-                
-                total_score = title_score + content_score + meta_score
-                
-                result['validation_details'] = {
-                    'title_matches': title_matches,
-                    'content_matches': content_matches,
-                    'meta_matches': meta_matches,
-                    'total_keywords': total_keywords
-                }
-                
-                if total_score >= 40:  # Threshold for validation
-                    result['is_valid'] = True
-                    result['confidence_boost'] = min(int(total_score), 30)
-    
-    except Exception as e:
-        logger.error(f"Error validating website {website_url}: {e}")
-    
-    return result
-
-def validate_website_content(content: str, business_name: str) -> bool:
-    """Validate website content against business name."""
-    content_lower = content.lower()
-    business_keywords = business_name.lower().split()
-    
-    # Check if at least 50% of business name keywords appear in content
-    keyword_matches = sum(1 for keyword in business_keywords if keyword in content_lower)
-    return keyword_matches >= len(business_keywords) * 0.5
-
-def is_valid_website_url(url: str) -> bool:
+def generate_potential_domains(business_name: str) -> List[str]:
     """
-    Validate if a URL is a proper website URL.
-    
-    Args:
-        url: URL to validate
-    
-    Returns:
-        True if valid website URL, False otherwise
-    """
-    try:
-        if not url:
-            return False
-        
-        # Add protocol if missing
-        if not url.startswith(('http://', 'https://')):
-            url = f"https://{url}"
-        
-        parsed = urlparse(url)
-        
-        # Must have valid domain
-        if not parsed.netloc:
-            return False
-        
-        # Must not be just social media (we want actual websites)
-        if any(platform in parsed.netloc.lower() for platform in SOCIAL_PLATFORMS):
-            return False
-        
-        # Try to access the URL
-        response = requests.head(url, timeout=10, allow_redirects=True)
-        return response.status_code < 400
-        
-    except Exception:
-        return False
-
-@rate_limit(seconds=2)
-def search_business_website(business_name: str, address: str = "") -> Optional[str]:
-    """
-    Search for business website using search engines.
+    Generate potential domain names for a business.
     
     Args:
         business_name: Name of the business
-        address: Business address for better targeting
-    
+        
     Returns:
-        Website URL if found, None otherwise
+        List of potential domain names
     """
-    try:
-        # Create search query
-        query = f'"{business_name}"'
-        if address:
-            # Extract city from address
-            city = address.split(',')[0].strip()
-            query += f" {city}"
-        query += " site:"
-        
-        # Use multiple search approaches
-        search_queries = [
-            f'"{business_name}" website',
-            f'"{business_name}" contact',
-            f'"{business_name}" {address}' if address else f'"{business_name}"'
-        ]
-        
-        for search_query in search_queries:
-            website = perform_web_search(search_query)
-            if website and validate_website_url(website):
-                logger.info(f"Found website via search: {website}")
-                return website
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"Error searching business website: {e}")
-        return None
+    if not business_name:
+        return []
+    
+    # Clean business name
+    clean_name = clean_business_name_for_domain(business_name)
+    
+    # Generate variations
+    domains = []
+    
+    # Common TLDs for Morocco
+    tlds = ['.com', '.ma', '.org', '.net', '.fr', '.es']
+    
+    # Generate different name variations
+    name_variations = [
+        clean_name,
+        clean_name.replace(' ', ''),
+        clean_name.replace(' ', '-'),
+        clean_name.replace(' ', '_'),
+        clean_name.split()[0] if ' ' in clean_name else clean_name,  # First word only
+    ]
+    
+    # Add common business prefixes/suffixes
+    business_prefixes = ['', 'restaurant', 'cafe', 'hotel', 'spa', 'shop']
+    business_suffixes = ['', 'marrakesh', 'morocco', 'marrakech']
+    
+    for variation in name_variations:
+        if len(variation) < 3:  # Skip very short names
+            continue
+            
+        for tld in tlds:
+            # Basic domain
+            domains.append(f"{variation}{tld}")
+            
+            # With common prefixes
+            for prefix in business_prefixes:
+                if prefix and prefix.lower() not in variation.lower():
+                    domains.append(f"{prefix}{variation}{tld}")
+                    domains.append(f"{prefix}-{variation}{tld}")
+            
+            # With common suffixes
+            for suffix in business_suffixes:
+                if suffix and suffix.lower() not in variation.lower():
+                    domains.append(f"{variation}{suffix}{tld}")
+                    domains.append(f"{variation}-{suffix}{tld}")
+    
+    # Remove duplicates and sort by likelihood
+    unique_domains = list(set(domains))
+    
+    # Prioritize .com and .ma domains
+    prioritized_domains = []
+    for domain in unique_domains:
+        if domain.endswith('.com'):
+            prioritized_domains.insert(0, domain)
+        elif domain.endswith('.ma'):
+            prioritized_domains.insert(1 if prioritized_domains and prioritized_domains[0].endswith('.com') else 0, domain)
+        else:
+            prioritized_domains.append(domain)
+    
+    return prioritized_domains[:20]  # Return top 20 most likely domains
 
-def perform_web_search(query: str) -> Optional[str]:
+def clean_business_name_for_domain(name: str) -> str:
+    """Clean business name for domain generation."""
+    # Convert to lowercase
+    clean = name.lower()
+    
+    # Remove common business words
+    business_words = [
+        'restaurant', 'cafe', 'hotel', 'spa', 'shop', 'store', 'boutique',
+        'riad', 'dar', 'chez', 'le', 'la', 'les', 'du', 'de', 'des',
+        'et', 'and', '&', 'ltd', 'sarl', 'sas'
+    ]
+    
+    for word in business_words:
+        clean = re.sub(r'\b' + re.escape(word) + r'\b', '', clean)
+    
+    # Remove special characters except spaces and hyphens
+    clean = re.sub(r'[^\w\s-]', '', clean)
+    
+    # Remove extra whitespace
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    
+    return clean
+
+def test_domain_availability(domain: str) -> Dict[str, Any]:
     """
-    Perform web search and extract potential website URLs.
+    Test if a domain exists and has a website.
     
     Args:
-        query: Search query
-    
+        domain: Domain name to test
+        
     Returns:
-        Website URL if found, None otherwise
+        Dictionary with domain test results
     """
-    try:
-        # Simple search implementation (in production, use proper search APIs)
-        search_url = f"https://www.google.com/search?q={query}"
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        response = requests.get(search_url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        # Extract URLs from search results
-        urls = re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', response.text)
-        
-        # Filter for potential business websites
-        for url in urls:
-            if is_business_website(url, query):
-                return url
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"Web search error: {e}")
-        return None
-
-def is_business_website(url: str, query: str) -> bool:
-    """
-    Check if URL likely belongs to the business.
+    result = {
+        'exists': False,
+        'url': None,
+        'quality_score': 0,
+        'confidence': 0,
+        'response_time': 0,
+        'status_code': None
+    }
     
-    Args:
-        url: URL to check
-        query: Original search query
+    # Test both HTTP and HTTPS
+    protocols = ['https://', 'http://']
     
-    Returns:
-        True if likely business website, False otherwise
-    """
-    try:
-        parsed = urlparse(url)
-        domain = parsed.netloc.lower()
+    for protocol in protocols:
+        test_url = f"{protocol}{domain}"
         
-        # Skip search engines and social media
-        skip_domains = [
-            'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
-            'facebook.com', 'instagram.com', 'twitter.com', 'linkedin.com',
-            'youtube.com', 'wikipedia.org', 'tripadvisor.com'
-        ]
-        
-        if any(skip in domain for skip in skip_domains):
-            return False
-        
-        # Quick content check
         try:
-            response = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+            start_time = time.time()
+            response = requests.get(
+                test_url,
+                timeout=10,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                },
+                allow_redirects=True
+            )
+            
+            response_time = time.time() - start_time
+            
             if response.status_code == 200:
-                content = response.text.lower()
-                business_keywords = query.lower().replace('"', '').split()
+                result['exists'] = True
+                result['url'] = test_url
+                result['status_code'] = response.status_code
+                result['response_time'] = response_time
                 
-                # Check if business name appears in content
-                keyword_matches = sum(1 for keyword in business_keywords if keyword in content)
-                return keyword_matches >= len(business_keywords) * 0.5
-        except:
-            pass
+                # Analyze website quality
+                quality_info = analyze_website_quality(response.text, test_url)
+                result['quality_score'] = quality_info['score']
+                result['confidence'] = quality_info['confidence']
+                
+                logger.info(f"Found website: {test_url} (Quality: {quality_info['score']}/100)")
+                return result
+            
+        except requests.exceptions.RequestException as e:
+            logger.debug(f"Failed to connect to {test_url}: {e}")
+            continue
         
-        return True  # Default to true for initial screening
-        
-    except Exception:
-        return False
+        # Add delay between requests
+        time.sleep(0.5)
+    
+    return result
 
-def find_social_media_profiles(business_name: str, address: str = "") -> List[Dict[str, str]]:
+def search_business_website(business_name: str, address: str = '') -> Dict[str, Any]:
+    """
+    Search for business website using various methods.
+    
+    Args:
+        business_name: Name of the business
+        address: Business address for context
+        
+    Returns:
+        Dictionary with search results
+    """
+    result = {
+        'found': False,
+        'url': None,
+        'quality_score': 0,
+        'confidence': 0,
+        'method': None
+    }
+    
+    # This is a placeholder for more advanced search methods
+    # In a real implementation, you could use:
+    # - Google Custom Search API
+    # - Bing Search API
+    # - DuckDuckGo search
+    # - Social media APIs
+    
+    logger.info(f"Searching web for: {business_name}")
+    
+    # For now, return not found
+    return result
+
+def find_social_media_profiles(business_name: str) -> List[Dict[str, str]]:
     """
     Find social media profiles for a business.
     
     Args:
         business_name: Name of the business
-        address: Business address
-    
+        
     Returns:
-        List of social media profile dictionaries
+        List of social media profiles found
     """
     profiles = []
     
-    try:
-        # Search for social media profiles
-        for platform in ['facebook', 'instagram', 'linkedin']:
-            query = f'"{business_name}" site:{platform}.com'
-            if address:
-                city = address.split(',')[0].strip()
-                query += f" {city}"
-            
-            profile_url = search_social_media_profile(platform, query)
-            if profile_url:
-                profiles.append({
-                    'platform': platform,
-                    'url': profile_url,
-                    'confidence': 70
-                })
-        
-    except Exception as e:
-        logger.error(f"Error finding social media profiles: {e}")
+    # This is a placeholder for social media detection
+    # In a real implementation, you could check:
+    # - Facebook API
+    # - Instagram API
+    # - Google My Business
+    # - LinkedIn API
+    
+    logger.info(f"Searching social media for: {business_name}")
     
     return profiles
 
-def search_social_media_profile(platform: str, query: str) -> Optional[str]:
+def analyze_website_quality(html_content: str, url: str) -> Dict[str, Any]:
     """
-    Search for specific social media profile.
+    Analyze website quality and determine if it's a legitimate business website.
     
     Args:
-        platform: Social media platform name
-        query: Search query
-    
+        html_content: HTML content of the website
+        url: Website URL
+        
     Returns:
-        Profile URL if found, None otherwise
+        Quality analysis results
     """
     try:
-        # This is a simplified implementation
-        # In production, use proper social media APIs
-        search_url = f"https://www.google.com/search?q={query}"
+        soup = BeautifulSoup(html_content, 'html.parser')
         
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        score = 0
+        confidence = 0
         
-        response = requests.get(search_url, headers=headers, timeout=10)
-        
-        # Look for social media URLs in results
-        pattern = f'https?://(www\.)?{platform}\.com/[^\s<>"{{}}|\\\\^`\[\]]+'
-        matches = re.findall(pattern, response.text)
-        
-        if matches:
-            return f"https://{platform}.com/" + matches[0].split('/')[-1]
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"Error searching {platform} profile: {e}")
-        return None
-
-def extract_website_from_social_profile(profile_url: str) -> Optional[str]:
-    """
-    Extract website URL from social media profile.
-    
-    Args:
-        profile_url: Social media profile URL
-    
-    Returns:
-        Website URL if found, None otherwise
-    """
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        response = requests.get(profile_url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Look for website links in common places
-        selectors = [
-            'a[href*="http"]',
-            '[data-testid="website"]',
-            '.website',
-            '.link',
-            '.bio a'
-        ]
-        
-        for selector in selectors:
-            links = soup.select(selector)
-            for link in links:
-                href = link.get('href', '')
-                if href and validate_website_url(href):
-                    return href
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"Error extracting website from social profile: {e}")
-        return None
-
-def search_website_by_phone(phone: str) -> Optional[str]:
-    """
-    Search for website using phone number.
-    
-    Args:
-        phone: Phone number to search
-    
-    Returns:
-        Website URL if found, None otherwise
-    """
-    try:
-        cleaned_phone = clean_phone_number(phone)
-        if not cleaned_phone:
-            return None
-        
-        # Search with phone number
-        query = f'"{cleaned_phone}"'
-        website = perform_web_search(query)
-        
-        if website and validate_website_url(website):
-            return website
-        
-        return None
-        
-    except Exception as e:
-        logger.error(f"Error searching website by phone: {e}")
-        return None
-
-def predict_business_domains(business_name: str) -> List[str]:
-    """
-    Predict possible domain names for a business.
-    
-    Args:
-        business_name: Name of the business
-    
-    Returns:
-        List of predicted domain names
-    """
-    domains = []
-    
-    try:
-        # Clean business name
-        clean_name = re.sub(r'[^a-zA-Z0-9\s]', '', business_name.lower())
-        words = clean_name.split()
-        
-        if not words:
-            return domains
-        
-        # Common domain patterns
-        base_name = ''.join(words)
-        first_word = words[0]
-        
-        # Common TLDs to try
-        tlds = ['.com', '.ma', '.org', '.net']
-        
-        patterns = [
-            base_name,
-            first_word,
-            '-'.join(words),
-            f"{first_word}morocco",
-            f"{base_name}ma"
-        ]
-        
-        for pattern in patterns:
-            for tld in tlds:
-                domains.append(f"{pattern}{tld}")
-        
-    except Exception as e:
-        logger.error(f"Error predicting domains: {e}")
-    
-    return domains[:10]  # Limit to top 10 predictions
-
-def check_domain_exists(domain: str) -> bool:
-    """
-    Check if a domain exists and is accessible.
-    
-    Args:
-        domain: Domain name to check
-    
-    Returns:
-        True if domain exists, False otherwise
-    """
-    try:
-        # Check DNS resolution
-        socket.gethostbyname(domain)
-        
-        # Check HTTP accessibility
-        for protocol in ['https', 'http']:
-            try:
-                url = f"{protocol}://{domain}"
-                response = requests.head(url, timeout=5, allow_redirects=True)
-                if response.status_code < 400:
-                    return True
-            except:
-                continue
-        
-        return False
-        
-    except Exception:
-        return False
-
-def analyze_website_quality(website_url: str) -> int:
-    """
-    Analyze website quality and return a score.
-    
-    Args:
-        website_url: Website URL to analyze
-    
-    Returns:
-        Quality score (0-100)
-    """
-    score = 0
-    
-    try:
-        response = requests.get(website_url, timeout=10)
-        response.raise_for_status()
-        
-        # Basic accessibility (20 points)
-        score += 20
-        
-        # SSL certificate (20 points)
-        if website_url.startswith('https://'):
-            score += 20
-        
-        # Content analysis
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Has title (10 points)
+        # Check for basic website structure
         if soup.find('title'):
-            score += 10
-        
-        # Has contact information (20 points)
-        content = soup.get_text().lower()
-        contact_keywords = ['contact', 'phone', 'email', 'address']
-        if any(keyword in content for keyword in contact_keywords):
             score += 20
         
-        # Has navigation (10 points)
-        if soup.find(['nav', 'menu']) or soup.find_all('a', href=True):
+        # Check for business-relevant content
+        business_indicators = [
+            'menu', 'contact', 'about', 'reservation', 'booking',
+            'location', 'hours', 'services', 'gallery', 'restaurant',
+            'hotel', 'cafe', 'spa'
+        ]
+        
+        text_content = soup.get_text().lower()
+        
+        for indicator in business_indicators:
+            if indicator in text_content:
+                score += 5
+        
+        # Check for contact information
+        if re.search(r'\+212\d{9}', text_content):  # Moroccan phone number
+            score += 15
+        
+        if re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text_content):  # Email
             score += 10
         
-        # Mobile responsive indicators (10 points)
-        if soup.find('meta', attrs={'name': 'viewport'}):
+        # Check for address/location
+        morocco_locations = ['marrakesh', 'marrakech', 'rabat', 'casablanca', 'fez', 'morocco', 'maroc']
+        if any(location in text_content for location in morocco_locations):
             score += 10
         
-        # Has images (10 points)
+        # Check for images
         if soup.find_all('img'):
-            score += 10
+            score += 5
+        
+        # Penalize if it looks like a parking/placeholder page
+        if any(word in text_content for word in ['domain', 'parking', 'for sale', 'coming soon']):
+            score -= 30
+        
+        # Set confidence based on score
+        if score >= 70:
+            confidence = 95
+        elif score >= 50:
+            confidence = 85
+        elif score >= 30:
+            confidence = 70
+        else:
+            confidence = 50
+        
+        return {
+            'score': max(0, min(100, score)),
+            'confidence': confidence,
+            'has_contact_info': score >= 25,
+            'appears_legitimate': score >= 40
+        }
         
     except Exception as e:
         logger.error(f"Error analyzing website quality: {e}")
-        score = 0
-    
-    return min(score, 100)
+        return {
+            'score': 0,
+            'confidence': 0,
+            'has_contact_info': False,
+            'appears_legitimate': False
+        }
 
-def bulk_website_check(businesses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def validate_website_url(url: str) -> Dict[str, Any]:
     """
-    Perform bulk website checking for multiple businesses.
+    Validate a website URL and check its quality.
     
     Args:
-        businesses: List of business dictionaries
-    
+        url: URL to validate
+        
     Returns:
-        List of business dictionaries with website status
+        Validation results
     """
-    results = []
-    
-    for i, business in enumerate(businesses):
-        try:
-            logger.info(f"Checking website for business {i+1}/{len(businesses)}: {business.get('name', 'Unknown')}")
-            
-            website_status = check_website_status(business)
-            business.update(website_status)
-            results.append(business)
-            
-            # Rate limiting
-            time.sleep(1)
-            
-        except Exception as e:
-            logger.error(f"Error checking business {i}: {e}")
-            business.update({
-                'has_website': False,
-                'website_url': None,
-                'website_quality_score': 0,
-                'social_media_profiles': [],
-                'detection_method': 'error',
-                'confidence_score': 0
-            })
-            results.append(business)
-    
-    return results
-
-# Legacy function for backward compatibility
-def check_business_website(business_name: str, phone: str = None) -> Optional[str]:
-    """
-    Legacy function for backward compatibility.
-    
-    Args:
-        business_name: Name of the business
-        phone: Business phone number
-    
-    Returns:
-        Website URL if found, None otherwise
-    """
-    business_data = {
-        'name': business_name,
-        'phone': phone or '',
-        'address': ''
+    result = {
+        'is_valid': False,
+        'quality_score': 0,
+        'final_url': url,
+        'status_code': None
     }
     
-    result = check_website_status(business_data)
-    return result.get('website_url')
+    try:
+        # Clean and format URL
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        response = requests.get(
+            url,
+            timeout=10,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            allow_redirects=True
+        )
+        
+        if response.status_code == 200:
+            result['is_valid'] = True
+            result['status_code'] = response.status_code
+            result['final_url'] = response.url
+            
+            # Analyze quality
+            quality_info = analyze_website_quality(response.text, response.url)
+            result['quality_score'] = quality_info['score']
+        
+    except Exception as e:
+        logger.debug(f"URL validation failed for {url}: {e}")
+    
+    return result
+
+def is_valid_website_url(url: str) -> bool:
+    """Check if URL is a valid website URL."""
+    if not url:
+        return False
+    
+    try:
+        result = urlparse(url)
+        return all([result.scheme in ['http', 'https'], result.netloc])
+    except:
+        return False
+
+def ai_generate_domain_variations(business_name: str, category: str = '', client: Optional[Any] = None) -> List[str]:
+    """
+    Use AI to generate realistic domain variations for a business.
+    
+    Args:
+        business_name: Business name
+        category: Business category (restaurant, cafe, etc.)
+        client: Groq AI client
+    
+    Returns:
+        List of possible domain variations
+    """
+    try:
+        if not client:
+            try:
+                from ai_assistant import initialize_groq_client
+                client = initialize_groq_client()
+            except ImportError:
+                logger.warning("AI assistant module not available, using fallback")
+                return generate_fallback_domains(business_name, category)
+        
+        if not client:
+            logger.warning("AI client not available, using fallback domain generation")
+            return generate_fallback_domains(business_name, category)
+        
+        # Create prompt for AI domain generation
+        prompt = f"""
+        Generate 5 realistic domain variations for this business:
+        Business Name: "{business_name}"
+        Category: "{category}"
+        
+        Rules for domain generation:
+        1. Remove spaces, accents, and special characters
+        2. Use only letters and numbers
+        3. Keep it short and memorable
+        4. Common patterns: businessname.com, businessnamecategory.com, categorybusinessname.com
+        5. No underscores, spaces, or special characters in domain
+        6. Convert accented characters (é→e, à→a, etc.)
+        
+        Examples:
+        - "Café Argana" → "cafeargana.com", "argana.com", "restaurantargana.com"
+        - "Restaurant Atlas" → "restaurantatlas.com", "atlas.com", "atlasrestaurant.com"
+        
+        Return ONLY the domain names (without http/https), one per line, no explanations.
+        """
+        
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.7
+        )
+        
+        # Parse AI response
+        ai_domains = []
+        for line in response.choices[0].message.content.strip().split('\n'):
+            domain = line.strip()
+            if domain and '.' in domain and len(domain) < 50:
+                # Clean domain further
+                domain = clean_domain_name(domain)
+                if domain:
+                    ai_domains.append(domain)
+        
+        # Add some manual variations as backup
+        fallback_domains = generate_fallback_domains(business_name, category)
+        
+        # Combine and deduplicate
+        all_domains = list(set(ai_domains + fallback_domains))
+        
+        logger.info(f"Generated {len(all_domains)} domain variations for '{business_name}'")
+        return all_domains[:8]  # Return max 8 domains to check
+    
+    except Exception as e:
+        logger.error(f"AI domain generation failed: {e}")
+        return generate_fallback_domains(business_name, category)
+
+def clean_domain_name(domain: str) -> str:
+    """Clean and validate domain name."""
+    import re
+    import unicodedata
+    
+    try:
+        # Remove protocol if present
+        domain = domain.replace('http://', '').replace('https://', '').replace('www.', '')
+        
+        # Normalize unicode characters (é → e, à → a, etc.)
+        domain = unicodedata.normalize('NFD', domain)
+        domain = domain.encode('ascii', 'ignore').decode('ascii')
+        
+        # Convert to lowercase
+        domain = domain.lower()
+        
+        # Remove all non-alphanumeric except dots
+        domain = re.sub(r'[^a-z0-9.]', '', domain)
+        
+        # Ensure it has a valid TLD
+        if '.' not in domain:
+            domain += '.com'
+        elif domain.endswith('.'):
+            domain += 'com'
+        
+        # Validate domain format
+        if re.match(r'^[a-z0-9]+\.[a-z]{2,}$', domain) and len(domain) > 4:
+            return domain
+        
+        return None
+    
+    except Exception as e:
+        logger.error(f"Error cleaning domain '{domain}': {e}")
+        return None
+
+def generate_fallback_domains(business_name: str, category: str = '') -> List[str]:
+    """Generate fallback domain variations when AI is not available."""
+    import re
+    import unicodedata
+    
+    # Normalize and clean business name
+    clean_name = unicodedata.normalize('NFD', business_name.lower())
+    clean_name = clean_name.encode('ascii', 'ignore').decode('ascii')
+    clean_name = re.sub(r'[^a-z0-9]', '', clean_name)
+    
+    # Clean category
+    clean_category = re.sub(r'[^a-z0-9]', '', category.lower()) if category else ''
+    
+    domains = []
+    
+    if clean_name:
+        # Basic variations
+        domains.extend([
+            f"{clean_name}.com",
+            f"{clean_name}.ma",  # Morocco TLD
+            f"{clean_name}marrakech.com",
+            f"{clean_name}morocco.com"
+        ])
+        
+        # Category combinations
+        if clean_category:
+            domains.extend([
+                f"{clean_category}{clean_name}.com",
+                f"{clean_name}{clean_category}.com",
+                f"{clean_category}{clean_name}.ma"
+            ])
+        
+        # Common prefixes for Morocco
+        domains.extend([
+            f"restaurant{clean_name}.com",
+            f"cafe{clean_name}.com",
+            f"hotel{clean_name}.com",
+            f"{clean_name}restaurant.com"
+        ])
+    
+    return list(set(domains))
+
+def enhanced_website_search(business_name: str, category: str = '', config: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Enhanced website search using AI-generated domain variations.
+    
+    Args:
+        business_name: Business name
+        category: Business category
+        config: Configuration dictionary
+    
+    Returns:
+        Website search results with detailed information
+    """
+    logger.info(f"Starting enhanced website search for: {business_name}")
+    
+    result = {
+        'business_name': business_name,
+        'website_found': False,
+        'website_url': '',
+        'domains_checked': [],
+        'working_domains': [],
+        'quality_score': 0,
+        'search_method': 'ai_enhanced',
+        'details': {}
+    }
+    
+    try:
+        # Generate domain variations using AI
+        try:
+            from ai_assistant import initialize_groq_client
+            client = initialize_groq_client()
+        except ImportError:
+            logger.warning("AI assistant not available, using fallback domain generation")
+            client = None
+        
+        domain_variations = ai_generate_domain_variations(business_name, category, client)
+        
+        logger.info(f"Checking {len(domain_variations)} domain variations")
+        
+        working_domains = []
+        
+        # Check each domain variation
+        for domain in domain_variations:
+            result['domains_checked'].append(domain)
+            
+            # Check both HTTP and HTTPS
+            for protocol in ['https://', 'http://']:
+                full_url = f"{protocol}{domain}"
+                
+                try:
+                    logger.debug(f"Checking: {full_url}")
+                    
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    }
+                    
+                    response = requests.get(full_url, headers=headers, timeout=10, allow_redirects=True)
+                    
+                    if response.status_code == 200:
+                        # Check if it's a real website (not a parking page)
+                        content = response.text.lower()
+                        
+                        # Look for signs it's a real business website
+                        business_indicators = [
+                            business_name.lower().replace(' ', ''),
+                            'contact', 'menu', 'about', 'services',
+                            'reservation', 'book', 'order'
+                        ]
+                        
+                        parking_indicators = [
+                            'domain for sale', 'parked domain', 'buy this domain',
+                            'domain parking', 'coming soon', 'under construction'
+                        ]
+                        
+                        business_score = sum(1 for indicator in business_indicators if indicator in content)
+                        parking_score = sum(1 for indicator in parking_indicators if indicator in content)
+                        
+                        if business_score > parking_score and business_score > 0:
+                            working_domains.append({
+                                'url': full_url,
+                                'status_code': response.status_code,
+                                'business_score': business_score,
+                                'content_length': len(content),
+                                'title': extract_title_from_content(content)
+                            })
+                            
+                            logger.info(f"✅ Found working website: {full_url}")
+                
+                except requests.exceptions.RequestException as e:
+                    logger.debug(f"❌ Failed to connect to {full_url}: {e}")
+                    continue
+            
+            # Rate limiting
+            import time
+            time.sleep(0.5)
+        
+        # Process results
+        if working_domains:
+            # Sort by business score (most relevant first)
+            working_domains.sort(key=lambda x: x['business_score'], reverse=True)
+            best_site = working_domains[0]
+            
+            result['website_found'] = True
+            result['website_url'] = best_site['url']
+            result['working_domains'] = working_domains
+            result['quality_score'] = min(best_site['business_score'] * 20, 100)  # Score out of 100
+            result['details'] = {
+                'title': best_site.get('title', ''),
+                'content_length': best_site['content_length'],
+                'total_domains_found': len(working_domains)
+            }
+    
+    except Exception as e:
+        logger.error(f"Enhanced website search failed: {e}")
+        result['details']['error'] = str(e)
+    
+    return result
+
+def extract_title_from_content(content: str) -> str:
+    """Extract title from HTML content."""
+    try:
+        import re
+        title_match = re.search(r'<title[^>]*>([^<]+)</title>', content, re.IGNORECASE)
+        if title_match:
+            return title_match.group(1).strip()
+    except:
+        pass
+    return ''
