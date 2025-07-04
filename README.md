@@ -1,16 +1,33 @@
 # Business Lead Finder
 
-A powerful command-line tool to find local businesses without websites and identify potential clients for web development services. Built specifically for the Morocco market with a focus on Marrakesh.
+A powerful CLI tool to find local businesses without websites in Morocco. Built specifically for French-speaking businesses with smart lead scoring that prioritizes 2-3 star businesses (highest opportunity).
+
+## 🚀 Super Quick Start
+
+**1. Run Setup:**
+```bash
+setup.bat
+```
+
+**2. Start Finding Leads:**
+```bash
+blf                          # Interactive mode
+blf restaurants marrakech    # Quick search
+blf cafes casablanca        # Find cafes
+blf demo                    # See all features
+```
+
+That's it! See [QUICK_START.md](QUICK_START.md) for more details.
 
 ## 🎯 Overview
 
 Business Lead Finder helps web developers and digital agencies discover high-quality business prospects by:
 
 - **Finding businesses without websites** - Your biggest opportunities
-- **Scoring leads automatically** - Prioritize your outreach efforts  
-- **Generating professional reports** - Present findings to clients or team
-- **Exporting contact data** - Ready for CRM import or calling campaigns
-- **Supporting multiple data sources** - Free APIs prioritized, no credit card required
+- **Smart lead scoring** - Low-rated businesses (2-3 stars) score highest
+- **French language support** - Perfect for Morocco's market
+- **Morocco-specific patterns** - Supports .ma domains and local business patterns
+- **Professional reports** - Export-ready data for CRM or outreach
 
 ## ⚡ Quick Start
 
@@ -34,24 +51,84 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-### 3. First Run
+### 3. Easy Setup (Recommended)
+
+Run the setup script to create the `blf` command:
+
+```bash
+# Run setup (Windows)
+setup.bat
+
+# Now you can use short commands anywhere:
+blf                          # Interactive mode
+blf restaurants marrakech    # Quick search
+blf cafes casablanca        # Find cafes
+blf demo                    # Run demo
+```
+
+### 4. Alternative Ways to Run
+
+**Method 1: Short batch command**
+```bash
+blf.bat                      # Interactive mode
+blf.bat restaurants marrakech # Quick search
+```
+
+**Method 2: Python launcher**
+```bash
+python blf.py               # Quick launcher
+```
+
+**Method 3: Traditional method**
+```bash
+python main.py              # Standard way
+```
+
+### 5. First Run
 
 ```bash
 # Interactive mode (recommended for beginners)
-python main.py interactive
+blf
+# or
+python main.py
 
-# Or direct search
-python main.py search --location "Marrakesh, Morocco" --categories restaurants hotels
+# Direct search
+blf restaurants marrakech
+# or  
+python main.py restaurants marrakech
 ```
 
 ## 🖥️ CLI Commands Guide
+
+### Simple Commands (After Setup)
+
+**Interactive Mode**
+```bash
+blf                    # Start interactive mode
+```
+
+**Quick Search**
+```bash
+blf restaurants marrakech    # Find restaurants in Marrakech
+blf cafes casablanca        # Find cafes in Casablanca  
+blf hotels fez               # Find hotels in Fez
+blf spas rabat               # Find spas in Rabat
+```
+
+**Demo & Help**
+```bash
+blf demo                     # Run demonstration
+blf --help                   # Show help
+```
 
 ### Interactive Mode
 
 **Best for beginners** - Guided experience with prompts
 
 ```bash
-python main.py interactive
+blf
+# or
+python main.py
 ```
 
 **What it does:**
@@ -60,11 +137,12 @@ python main.py interactive
 - Asks for number of results
 - Guides you through the entire process
 
-### Search Command
+### Advanced Commands
 
 **Find businesses by location and category**
 
 ```bash
+# Traditional format (still supported)
 python main.py search --location "Marrakesh, Morocco" --categories restaurants hotels --max-results 50 --output results/leads.json
 ```
 
