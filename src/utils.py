@@ -6,9 +6,11 @@ import os
 import json
 import logging
 import re
+import time
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
+from functools import wraps
 
 def setup_logging(log_level: str = 'INFO', log_file: str = 'business_finder.log') -> None:
     """Setup logging configuration."""
@@ -33,9 +35,13 @@ def setup_logging(log_level: str = 'INFO', log_file: str = 'business_finder.log'
 
 def load_config(config_file: Optional[str] = None) -> Dict[str, Any]:
     """Load configuration from file or environment variables."""
-    from config.settings import get_config
+    from config.settings import SEARCH_CONFIG, API_KEYS, BUSINESS_CATEGORIES
     
-    config = get_config()
+    config = {
+        'search_config': SEARCH_CONFIG,
+        'api_keys': API_KEYS,
+        'business_categories': BUSINESS_CATEGORIES
+    }
     
     # Load custom config file if provided
     if config_file and Path(config_file).exists():
@@ -48,6 +54,503 @@ def load_config(config_file: Optional[str] = None) -> Dict[str, Any]:
             logging.info(f"Custom configuration loaded from: {config_file}")
             
         except Exception as e:
+            logging.error(f"Error loading custom config: {e}")
+    
+    return config
+
+def clean_phone_number(phone: str) -> str:
+    """
+    Clean and format phone number.
+    
+    Args:
+        phone: Raw phone number string
+    
+    Returns:
+        Cleaned phone number
+    """
+    if not phone:
+        return ""
+    
+    # Remove all non-digit characters except +
+    cleaned = re.sub(r'[^\d+]', '', phone)
+    
+    # Ensure it starts with + for international format
+    if cleaned and not cleaned.startswith('+'):
+        # Add Morocco country code if it looks like a Moroccan number
+        if len(cleaned) == 9 and cleaned.startswith(('5', '6', '7')):
+            cleaned = '+212' + cleaned
+        elif len(cleaned) == 10 and cleaned.startswith('0'):
+            cleaned = '+212' + cleaned[1:]
+        else:
+            cleaned = '+' + cleaned
+    
+    return cleaned
+
+def validate_business_data(business: Dict[str, Any]) -> bool:
+    """
+    Validate business data structure and required fields.
+    
+    Args:
+        business: Business data dictionary
+    
+    Returns:
+        True if valid, False otherwise
+    """
+    try:
+        # Required fields
+        required_fields = ['name']
+        
+        for field in required_fields:
+            if not business.get(field):
+                return False
+        
+        # Name should be meaningful (not just a number or single character)
+        name = business.get('name', '').strip()
+        if len(name) < 2 or name.isdigit():
+            return False
+        
+        # Phone validation if present
+        phone = business.get('phone', '')
+        if phone and len(clean_phone_number(phone)) < 8:
+            return False
+        
+        return True
+        
+    except Exception:
+        return False
+
+def validate_location(location: str) -> bool:
+    """
+    Validate location string.
+    
+    Args:
+        location: Location string
+    
+    Returns:
+        True if valid, False otherwise
+    """
+    if not location or not isinstance(location, str):
+        return False
+    
+    location = location.strip()
+    if len(location) < 2:
+        return False
+    
+    # Basic validation - no offensive patterns
+    forbidden_patterns = ['<script', 'javascript:', 'http://', 'https://']
+    if any(pattern in location.lower() for pattern in forbidden_patterns):
+        return False
+    
+    return True
+
+def validate_categories(categories: List[str]) -> bool:
+    """
+    Validate business categories list.
+    
+    Args:
+        categories: List of category strings
+    
+    Returns:
+        True if valid, False otherwise
+    """
+    if not categories or not isinstance(categories, list):
+        return False
+    
+    if len(categories) == 0 or len(categories) > 10:  # Reasonable limits
+        return False
+    
+    for category in categories:
+        if not isinstance(category, str) or len(category.strip()) < 2:
+            return False
+    
+    return True
+
+def rate_limit(seconds: float = 1.0):
+    """
+    Decorator to add rate limiting to functions.
+    
+    Args:
+        seconds: Number of seconds to wait between calls
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            time.sleep(seconds)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def extract_domain_from_url(url: str) -> Optional[str]:
+    """
+    Extract domain from URL.
+    
+    Args:
+        url: URL string
+    
+    Returns:
+        Domain name or None
+    """
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return parsed.netloc.lower()
+    except Exception:
+        return None
+
+def format_phone_for_display(phone: str) -> str:
+    """
+    Format phone number for display.
+    
+    Args:
+        phone: Raw phone number
+    
+    Returns:
+        Formatted phone number
+    """
+    cleaned = clean_phone_number(phone)
+    
+    if not cleaned:
+        return ""
+    
+    # Format Morocco numbers nicely
+    if cleaned.startswith('+212'):
+        number = cleaned[4:]  # Remove +212
+        if len(number) == 9:
+            return f"+212 {number[0]} {number[1:3]} {number[3:5]} {number[5:7]} {number[7:]}"
+    
+    return cleaned
+
+def create_directories(paths: List[str]) -> None:
+    """
+    Create directories if they don't exist.
+    
+    Args:
+        paths: List of directory paths to create
+    """
+    for path in paths:
+        try:
+            Path(path).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logging.error(f"Error creating directory {path}: {e}")
+
+def save_json_file(data: Any, filepath: str) -> bool:
+    """
+    Save data to JSON file.
+    
+    Args:
+        data: Data to save
+        filepath: File path
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Create directory if it doesn't exist
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error saving JSON file {filepath}: {e}")
+        return False
+
+def load_json_file(filepath: str) -> Optional[Any]:
+    """
+    Load data from JSON file.
+    
+    Args:
+        filepath: File path
+    
+    Returns:
+        Loaded data or None
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logging.error(f"Error loading JSON file {filepath}: {e}")
+        return None
+
+def get_timestamp() -> str:
+    """Get current timestamp as string."""
+    return datetime.now().isoformat()
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize filename for filesystem safety.
+    
+    Args:
+        filename: Raw filename
+    
+    Returns:
+        Sanitized filename
+    """
+    # Remove invalid characters
+    sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    
+    # Remove leading/trailing spaces and dots
+    sanitized = sanitized.strip(' .')
+    
+    # Limit length
+    if len(sanitized) > 200:
+        name, ext = os.path.splitext(sanitized)
+        sanitized = name[:200-len(ext)] + ext
+    
+    return sanitized
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate distance between two points in kilometers.
+    
+    Args:
+        lat1, lon1: First point coordinates
+        lat2, lon2: Second point coordinates
+    
+    Returns:
+        Distance in kilometers
+    """
+    try:
+        import math
+        
+        # Convert to radians
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        
+        # Haversine formula
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+        c = 2 * math.asin(math.sqrt(a))
+        
+        # Earth radius in km
+        r = 6371
+        
+        return r * c
+        
+    except Exception:
+        return 0.0
+
+def filter_businesses_by_distance(
+    businesses: List[Dict[str, Any]], 
+    center_lat: float, 
+    center_lon: float, 
+    max_distance_km: float = 10.0
+) -> List[Dict[str, Any]]:
+    """
+    Filter businesses by distance from center point.
+    
+    Args:
+        businesses: List of business dictionaries
+        center_lat: Center latitude
+        center_lon: Center longitude
+        max_distance_km: Maximum distance in kilometers
+    
+    Returns:
+        Filtered list of businesses
+    """
+    filtered = []
+    
+    for business in businesses:
+        try:
+            lat = float(business.get('latitude', 0))
+            lon = float(business.get('longitude', 0))
+            
+            if lat and lon:
+                distance = calculate_distance(center_lat, center_lon, lat, lon)
+                if distance <= max_distance_km:
+                    business['distance_km'] = round(distance, 2)
+                    filtered.append(business)
+            else:
+                # Include businesses without coordinates
+                filtered.append(business)
+                
+        except Exception:
+            # Include businesses with invalid coordinates
+            filtered.append(business)
+    
+    return filtered
+
+def deduplicate_businesses(businesses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Remove duplicate businesses based on name and phone.
+    
+    Args:
+        businesses: List of business dictionaries
+    
+    Returns:
+        Deduplicated list
+    """
+    seen = set()
+    unique = []
+    
+    for business in businesses:
+        # Create identifier
+        name = business.get('name', '').lower().strip()
+        phone = clean_phone_number(business.get('phone', ''))
+        
+        identifier = f"{name}|{phone}"
+        
+        if identifier not in seen and name:
+            seen.add(identifier)
+            unique.append(business)
+    
+    return unique
+
+def format_currency(amount: float, currency: str = 'MAD') -> str:
+    """
+    Format currency amount.
+    
+    Args:
+        amount: Amount to format
+        currency: Currency code
+    
+    Returns:
+        Formatted currency string
+    """
+    try:
+        return f"{amount:,.2f} {currency}"
+    except Exception:
+        return f"{amount} {currency}"
+
+def get_business_category_emoji(category: str) -> str:
+    """
+    Get emoji for business category.
+    
+    Args:
+        category: Business category
+    
+    Returns:
+        Appropriate emoji
+    """
+    category_emojis = {
+        'restaurant': '🍽️',
+        'hotel': '🏨',
+        'cafe': '☕',
+        'spa': '💆',
+        'shop': '🛍️',
+        'gym': '💪',
+        'bar': '🍺',
+        'pharmacy': '💊',
+        'bank': '🏦',
+        'gas_station': '⛽',
+        'hospital': '🏥',
+        'school': '🏫'
+    }
+    
+    category_lower = category.lower()
+    for key, emoji in category_emojis.items():
+        if key in category_lower:
+            return emoji
+    
+    return '🏢'  # Default business emoji
+
+def generate_business_slug(business_name: str) -> str:
+    """
+    Generate URL-friendly slug from business name.
+    
+    Args:
+        business_name: Business name
+    
+    Returns:
+        URL slug
+    """
+    # Convert to lowercase and replace spaces with hyphens
+    slug = business_name.lower()
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    slug = re.sub(r'[-\s]+', '-', slug)
+    return slug.strip('-')
+
+def estimate_website_cost(business_type: str, features: List[str] = None) -> Dict[str, float]:
+    """
+    Estimate website development cost.
+    
+    Args:
+        business_type: Type of business
+        features: List of desired features
+    
+    Returns:
+        Cost estimate breakdown
+    """
+    base_costs = {
+        'restaurant': 800,
+        'hotel': 1500,
+        'spa': 1000,
+        'shop': 1200,
+        'service': 600
+    }
+    
+    feature_costs = {
+        'online_booking': 300,
+        'payment_processing': 200,
+        'multilingual': 150,
+        'mobile_app': 500,
+        'seo_optimization': 100
+    }
+    
+    base_cost = base_costs.get(business_type.lower(), 800)
+    feature_cost = sum(feature_costs.get(feature, 0) for feature in (features or []))
+    
+    total_cost = base_cost + feature_cost
+    
+    return {
+        'base_cost': base_cost,
+        'feature_cost': feature_cost,
+        'total_cost': total_cost,
+        'currency': 'USD'
+    }
+
+def validate_email(email: str) -> bool:
+    """
+    Validate email address format.
+    
+    Args:
+        email: Email address
+    
+    Returns:
+        True if valid, False otherwise
+    """
+    if not email:
+        return False
+    
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+def extract_emails_from_text(text: str) -> List[str]:
+    """
+    Extract email addresses from text.
+    
+    Args:
+        text: Text to search
+    
+    Returns:
+        List of email addresses
+    """
+    pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    emails = re.findall(pattern, text)
+    return [email for email in emails if validate_email(email)]
+
+def performance_monitor(func):
+    """
+    Decorator to monitor function performance.
+    
+    Args:
+        func: Function to monitor
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        
+        duration = end_time - start_time
+        logging.info(f"Function {func.__name__} took {duration:.2f} seconds")
+        
+        return result
+    return wrapper
+
+# ...existing code...
             logging.error(f"Error loading custom config: {e}")
     
     return config

@@ -1,126 +1,134 @@
 """
-Website Checker Module
-Advanced website detection using multiple methods.
+Website Checker Module for Business Lead Finder
+Checks if businesses have websites using multiple detection methods.
 """
 
 import requests
-import logging
-import time
-from typing import Dict, Any, Optional, List
-from urllib.parse import urlparse, urljoin
 import re
+import time
+import logging
+from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
+import socket
 
-from utils import clean_phone_number, extract_domain_from_url
+from utils import clean_phone_number, rate_limit
 
 logger = logging.getLogger(__name__)
 
-def check_website_status(
-    business_name: str,
-    phone: Optional[str] = None,
-    address: Optional[str] = None,
-    config: Dict[str, Any] = None
-) -> Dict[str, Any]:
+# Common website patterns
+WEBSITE_PATTERNS = [
+    r'https?://[^\s<>"{}|\\^`\[\]]+',
+    r'www\.[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}',
+    r'[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.(com|org|net|ma|fr|es)'
+]
+
+# Social media platforms
+SOCIAL_PLATFORMS = [
+    'facebook.com', 'instagram.com', 'twitter.com', 'linkedin.com',
+    'youtube.com', 'tiktok.com', 'whatsapp.com'
+]
+
+def check_website_status(business_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Check if a business has a website using multiple detection methods.
+    Comprehensive website status check for a business.
     
     Args:
-        business_name: Name of the business
-        phone: Business phone number (optional)
-        address: Business address (optional)
-        config: Configuration dictionary
+        business_data: Dictionary containing business information
     
     Returns:
-        Dictionary with website status and additional information
+        Dictionary with website status information
     """
-    logger.info(f"Checking website status for: {business_name}")
-    
     result = {
-        'business_name': business_name,
-        'website': None,
-        'confidence': 0,
-        'social_media': {},
-        'additional_info': {},
-        'methods_used': [],
-        'timestamp': time.time()
+        'has_website': False,
+        'website_url': None,
+        'website_quality_score': 0,
+        'social_media_profiles': [],
+        'detection_method': None,
+        'confidence_score': 0
     }
     
-    # Method 1: Direct search engine queries
     try:
-        search_results = search_engine_website_detection(business_name, address)
-        if search_results['website']:
-            result['website'] = search_results['website']
-            result['confidence'] = search_results['confidence']
-            result['methods_used'].append('search_engine')
-            logger.info(f"Website found via search engine: {result['website']}")
-    except Exception as e:
-        logger.error(f"Search engine detection failed: {e}")
-    
-    # Method 2: Social media profile analysis
-    try:
-        social_results = check_social_media_profiles(business_name, address)
-        result['social_media'] = social_results['profiles']
+        business_name = business_data.get('name', '')
+        phone = business_data.get('phone', '')
+        address = business_data.get('address', '')
         
-        # Check if social media has website links
-        if not result['website'] and social_results.get('website_from_social'):
-            result['website'] = social_results['website_from_social']
-            result['confidence'] = 60
-            result['methods_used'].append('social_media')
-            logger.info(f"Website found via social media: {result['website']}")
-    except Exception as e:
-        logger.error(f"Social media detection failed: {e}")
-    
-    # Method 3: Phone number reverse lookup
-    if phone and not result['website']:
-        try:
-            phone_results = phone_reverse_lookup(phone, business_name)
-            if phone_results['website']:
-                result['website'] = phone_results['website']
-                result['confidence'] = phone_results['confidence']
-                result['methods_used'].append('phone_lookup')
-                logger.info(f"Website found via phone lookup: {result['website']}")
-        except Exception as e:
-            logger.error(f"Phone lookup failed: {e}")
-    
-    # Method 4: Business directory checks
-    try:
-        directory_results = check_business_directories(business_name, address, phone)
-        if not result['website'] and directory_results['website']:
-            result['website'] = directory_results['website']
-            result['confidence'] = directory_results['confidence']
-            result['methods_used'].append('directory_search')
-            logger.info(f"Website found via directory: {result['website']}")
+        if not business_name:
+            return result
         
-        # Merge additional info
-        result['additional_info'].update(directory_results.get('additional_info', {}))
+        # Method 1: Check existing website field
+        existing_website = business_data.get('website', '')
+        if existing_website and validate_website_url(existing_website):
+            result.update({
+                'has_website': True,
+                'website_url': existing_website,
+                'detection_method': 'existing_data',
+                'confidence_score': 90
+            })
+            result['website_quality_score'] = analyze_website_quality(existing_website)
+            return result
+        
+        # Method 2: Search engine detection
+        search_website = search_business_website(business_name, address)
+        if search_website:
+            result.update({
+                'has_website': True,
+                'website_url': search_website,
+                'detection_method': 'search_engine',
+                'confidence_score': 75
+            })
+            result['website_quality_score'] = analyze_website_quality(search_website)
+            return result
+        
+        # Method 3: Social media detection
+        social_profiles = find_social_media_profiles(business_name, address)
+        if social_profiles:
+            result['social_media_profiles'] = social_profiles
+            
+            # Check if any social profiles have website links
+            for profile in social_profiles:
+                website_from_social = extract_website_from_social_profile(profile['url'])
+                if website_from_social:
+                    result.update({
+                        'has_website': True,
+                        'website_url': website_from_social,
+                        'detection_method': 'social_media_extraction',
+                        'confidence_score': 60
+                    })
+                    result['website_quality_score'] = analyze_website_quality(website_from_social)
+                    return result
+        
+        # Method 4: Phone-based search
+        if phone:
+            phone_website = search_website_by_phone(phone)
+            if phone_website:
+                result.update({
+                    'has_website': True,
+                    'website_url': phone_website,
+                    'detection_method': 'phone_search',
+                    'confidence_score': 70
+                })
+                result['website_quality_score'] = analyze_website_quality(phone_website)
+                return result
+        
+        # Method 5: Domain prediction
+        predicted_domains = predict_business_domains(business_name)
+        for domain in predicted_domains:
+            if check_domain_exists(domain):
+                result.update({
+                    'has_website': True,
+                    'website_url': f"https://{domain}",
+                    'detection_method': 'domain_prediction',
+                    'confidence_score': 50
+                })
+                result['website_quality_score'] = analyze_website_quality(f"https://{domain}")
+                return result
+        
+        logger.info(f"No website found for business: {business_name}")
+        
     except Exception as e:
-        logger.error(f"Directory search failed: {e}")
+        logger.error(f"Error checking website status: {e}")
     
-    # Method 5: Domain guessing
-    if not result['website']:
-        try:
-            guessed_domains = guess_business_domains(business_name)
-            for domain in guessed_domains:
-                if verify_domain_belongs_to_business(domain, business_name):
-                    result['website'] = domain
-                    result['confidence'] = 40
-                    result['methods_used'].append('domain_guessing')
-                    logger.info(f"Website found via domain guessing: {result['website']}")
-                    break
-        except Exception as e:
-            logger.error(f"Domain guessing failed: {e}")
-    
-    # Validate final website if found
-    if result['website']:
-        validation_result = validate_website_belongs_to_business(result['website'], business_name)
-        if not validation_result['is_valid']:
-            logger.warning(f"Website validation failed for {result['website']}")
-            result['website'] = None
-            result['confidence'] = 0
-        else:
-            result['confidence'] = min(result['confidence'] + validation_result['confidence_boost'], 100)
-    
-    logger.info(f"Website check completed. Found: {'Yes' if result['website'] else 'No'}")
     return result
 
 def search_engine_website_detection(business_name: str, address: Optional[str] = None) -> Dict[str, Any]:
@@ -270,25 +278,30 @@ def extract_website_from_social_profile(profile_url: str) -> Optional[str]:
         }
         
         response = requests.get(profile_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Look for website links in common locations
-        website_selectors = [
-            'a[href*="http"]:not([href*="facebook"]):not([href*="instagram"]):not([href*="twitter"]):not([href*="linkedin"])',
+        # Look for website links in common places
+        selectors = [
+            'a[href*="http"]',
             '[data-testid="website"]',
             '.website',
-            '.external-link'
+            '.link',
+            '.bio a'
         ]
         
-        for selector in website_selectors:
-            link_elem = soup.select_one(selector)
-            if link_elem:
-                href = link_elem.get('href')
-                if href and is_valid_website_url(href):
+        for selector in selectors:
+            links = soup.select(selector)
+            for link in links:
+                href = link.get('href', '')
+                if href and validate_website_url(href):
                     return href
         
         return None
-    except:
+        
+    except Exception as e:
+        logger.error(f"Error extracting website from social profile: {e}")
         return None
 
 def phone_reverse_lookup(phone: str, business_name: str) -> Dict[str, Any]:
@@ -539,71 +552,478 @@ def validate_website_content(content: str, business_name: str) -> bool:
     return keyword_matches >= len(business_keywords) * 0.5
 
 def is_valid_website_url(url: str) -> bool:
-    """Check if URL is a valid website URL."""
-    if not url:
-        return False
+    """
+    Validate if a URL is a proper website URL.
     
+    Args:
+        url: URL to validate
+    
+    Returns:
+        True if valid website URL, False otherwise
+    """
     try:
+        if not url:
+            return False
+        
+        # Add protocol if missing
+        if not url.startswith(('http://', 'https://')):
+            url = f"https://{url}"
+        
         parsed = urlparse(url)
         
-        # Must have domain
+        # Must have valid domain
         if not parsed.netloc:
             return False
         
-        # Exclude social media and directory sites
-        excluded_domains = [
-            'facebook.com', 'instagram.com', 'twitter.com', 'linkedin.com',
-            'youtube.com', 'tiktok.com', 'snapchat.com',
-            'tripadvisor.com', 'yelp.com', 'foursquare.com',
-            'google.com', 'maps.google.com'
-        ]
+        # Must not be just social media (we want actual websites)
+        if any(platform in parsed.netloc.lower() for platform in SOCIAL_PLATFORMS):
+            return False
         
-        domain = parsed.netloc.lower()
-        for excluded in excluded_domains:
-            if excluded in domain:
-                return False
+        # Try to access the URL
+        response = requests.head(url, timeout=10, allow_redirects=True)
+        return response.status_code < 400
         
-        return True
-    except:
+    except Exception:
         return False
 
-def extract_additional_contact_info(website_url: str) -> Dict[str, Any]:
-    """Extract additional contact information from website."""
-    contact_info = {
-        'emails': [],
-        'phones': [],
-        'social_links': {},
-        'contact_page': None
-    }
+@rate_limit(seconds=2)
+def search_business_website(business_name: str, address: str = "") -> Optional[str]:
+    """
+    Search for business website using search engines.
+    
+    Args:
+        business_name: Name of the business
+        address: Business address for better targeting
+    
+    Returns:
+        Website URL if found, None otherwise
+    """
+    try:
+        # Create search query
+        query = f'"{business_name}"'
+        if address:
+            # Extract city from address
+            city = address.split(',')[0].strip()
+            query += f" {city}"
+        query += " site:"
+        
+        # Use multiple search approaches
+        search_queries = [
+            f'"{business_name}" website',
+            f'"{business_name}" contact',
+            f'"{business_name}" {address}' if address else f'"{business_name}"'
+        ]
+        
+        for search_query in search_queries:
+            website = perform_web_search(search_query)
+            if website and validate_website_url(website):
+                logger.info(f"Found website via search: {website}")
+                return website
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error searching business website: {e}")
+        return None
+
+def perform_web_search(query: str) -> Optional[str]:
+    """
+    Perform web search and extract potential website URLs.
+    
+    Args:
+        query: Search query
+    
+    Returns:
+        Website URL if found, None otherwise
+    """
+    try:
+        # Simple search implementation (in production, use proper search APIs)
+        search_url = f"https://www.google.com/search?q={query}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(search_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Extract URLs from search results
+        urls = re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', response.text)
+        
+        # Filter for potential business websites
+        for url in urls:
+            if is_business_website(url, query):
+                return url
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Web search error: {e}")
+        return None
+
+def is_business_website(url: str, query: str) -> bool:
+    """
+    Check if URL likely belongs to the business.
+    
+    Args:
+        url: URL to check
+        query: Original search query
+    
+    Returns:
+        True if likely business website, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        
+        # Skip search engines and social media
+        skip_domains = [
+            'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
+            'facebook.com', 'instagram.com', 'twitter.com', 'linkedin.com',
+            'youtube.com', 'wikipedia.org', 'tripadvisor.com'
+        ]
+        
+        if any(skip in domain for skip in skip_domains):
+            return False
+        
+        # Quick content check
+        try:
+            response = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+            if response.status_code == 200:
+                content = response.text.lower()
+                business_keywords = query.lower().replace('"', '').split()
+                
+                # Check if business name appears in content
+                keyword_matches = sum(1 for keyword in business_keywords if keyword in content)
+                return keyword_matches >= len(business_keywords) * 0.5
+        except:
+            pass
+        
+        return True  # Default to true for initial screening
+        
+    except Exception:
+        return False
+
+def find_social_media_profiles(business_name: str, address: str = "") -> List[Dict[str, str]]:
+    """
+    Find social media profiles for a business.
+    
+    Args:
+        business_name: Name of the business
+        address: Business address
+    
+    Returns:
+        List of social media profile dictionaries
+    """
+    profiles = []
+    
+    try:
+        # Search for social media profiles
+        for platform in ['facebook', 'instagram', 'linkedin']:
+            query = f'"{business_name}" site:{platform}.com'
+            if address:
+                city = address.split(',')[0].strip()
+                query += f" {city}"
+            
+            profile_url = search_social_media_profile(platform, query)
+            if profile_url:
+                profiles.append({
+                    'platform': platform,
+                    'url': profile_url,
+                    'confidence': 70
+                })
+        
+    except Exception as e:
+        logger.error(f"Error finding social media profiles: {e}")
+    
+    return profiles
+
+def search_social_media_profile(platform: str, query: str) -> Optional[str]:
+    """
+    Search for specific social media profile.
+    
+    Args:
+        platform: Social media platform name
+        query: Search query
+    
+    Returns:
+        Profile URL if found, None otherwise
+    """
+    try:
+        # This is a simplified implementation
+        # In production, use proper social media APIs
+        search_url = f"https://www.google.com/search?q={query}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(search_url, headers=headers, timeout=10)
+        
+        # Look for social media URLs in results
+        pattern = f'https?://(www\.)?{platform}\.com/[^\s<>"{{}}|\\\\^`\[\]]+'
+        matches = re.findall(pattern, response.text)
+        
+        if matches:
+            return f"https://{platform}.com/" + matches[0].split('/')[-1]
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error searching {platform} profile: {e}")
+        return None
+
+def extract_website_from_social_profile(profile_url: str) -> Optional[str]:
+    """
+    Extract website URL from social media profile.
+    
+    Args:
+        profile_url: Social media profile URL
+    
+    Returns:
+        Website URL if found, None otherwise
+    """
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(profile_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Look for website links in common places
+        selectors = [
+            'a[href*="http"]',
+            '[data-testid="website"]',
+            '.website',
+            '.link',
+            '.bio a'
+        ]
+        
+        for selector in selectors:
+            links = soup.select(selector)
+            for link in links:
+                href = link.get('href', '')
+                if href and validate_website_url(href):
+                    return href
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting website from social profile: {e}")
+        return None
+
+def search_website_by_phone(phone: str) -> Optional[str]:
+    """
+    Search for website using phone number.
+    
+    Args:
+        phone: Phone number to search
+    
+    Returns:
+        Website URL if found, None otherwise
+    """
+    try:
+        cleaned_phone = clean_phone_number(phone)
+        if not cleaned_phone:
+            return None
+        
+        # Search with phone number
+        query = f'"{cleaned_phone}"'
+        website = perform_web_search(query)
+        
+        if website and validate_website_url(website):
+            return website
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error searching website by phone: {e}")
+        return None
+
+def predict_business_domains(business_name: str) -> List[str]:
+    """
+    Predict possible domain names for a business.
+    
+    Args:
+        business_name: Name of the business
+    
+    Returns:
+        List of predicted domain names
+    """
+    domains = []
+    
+    try:
+        # Clean business name
+        clean_name = re.sub(r'[^a-zA-Z0-9\s]', '', business_name.lower())
+        words = clean_name.split()
+        
+        if not words:
+            return domains
+        
+        # Common domain patterns
+        base_name = ''.join(words)
+        first_word = words[0]
+        
+        # Common TLDs to try
+        tlds = ['.com', '.ma', '.org', '.net']
+        
+        patterns = [
+            base_name,
+            first_word,
+            '-'.join(words),
+            f"{first_word}morocco",
+            f"{base_name}ma"
+        ]
+        
+        for pattern in patterns:
+            for tld in tlds:
+                domains.append(f"{pattern}{tld}")
+        
+    except Exception as e:
+        logger.error(f"Error predicting domains: {e}")
+    
+    return domains[:10]  # Limit to top 10 predictions
+
+def check_domain_exists(domain: str) -> bool:
+    """
+    Check if a domain exists and is accessible.
+    
+    Args:
+        domain: Domain name to check
+    
+    Returns:
+        True if domain exists, False otherwise
+    """
+    try:
+        # Check DNS resolution
+        socket.gethostbyname(domain)
+        
+        # Check HTTP accessibility
+        for protocol in ['https', 'http']:
+            try:
+                url = f"{protocol}://{domain}"
+                response = requests.head(url, timeout=5, allow_redirects=True)
+                if response.status_code < 400:
+                    return True
+            except:
+                continue
+        
+        return False
+        
+    except Exception:
+        return False
+
+def analyze_website_quality(website_url: str) -> int:
+    """
+    Analyze website quality and return a score.
+    
+    Args:
+        website_url: Website URL to analyze
+    
+    Returns:
+        Quality score (0-100)
+    """
+    score = 0
     
     try:
         response = requests.get(website_url, timeout=10)
+        response.raise_for_status()
+        
+        # Basic accessibility (20 points)
+        score += 20
+        
+        # SSL certificate (20 points)
+        if website_url.startswith('https://'):
+            score += 20
+        
+        # Content analysis
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Extract emails
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        emails = re.findall(email_pattern, response.text)
-        contact_info['emails'] = list(set(emails))
+        # Has title (10 points)
+        if soup.find('title'):
+            score += 10
         
-        # Extract phone numbers
-        phone_links = soup.find_all('a', href=re.compile(r'tel:'))
-        for link in phone_links:
-            phone = link.get('href').replace('tel:', '')
-            contact_info['phones'].append(phone)
+        # Has contact information (20 points)
+        content = soup.get_text().lower()
+        contact_keywords = ['contact', 'phone', 'email', 'address']
+        if any(keyword in content for keyword in contact_keywords):
+            score += 20
         
-        # Extract social media links
-        social_platforms = ['facebook', 'instagram', 'twitter', 'linkedin']
-        for platform in social_platforms:
-            links = soup.find_all('a', href=re.compile(f'{platform}.com'))
-            if links:
-                contact_info['social_links'][platform] = links[0].get('href')
+        # Has navigation (10 points)
+        if soup.find(['nav', 'menu']) or soup.find_all('a', href=True):
+            score += 10
         
-        # Find contact page
-        contact_links = soup.find_all('a', href=re.compile(r'contact|about|reach'))
-        if contact_links:
-            contact_info['contact_page'] = urljoin(website_url, contact_links[0].get('href'))
-    
+        # Mobile responsive indicators (10 points)
+        if soup.find('meta', attrs={'name': 'viewport'}):
+            score += 10
+        
+        # Has images (10 points)
+        if soup.find_all('img'):
+            score += 10
+        
     except Exception as e:
-        logger.error(f"Error extracting contact info from {website_url}: {e}")
+        logger.error(f"Error analyzing website quality: {e}")
+        score = 0
     
-    return contact_info
+    return min(score, 100)
+
+def bulk_website_check(businesses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Perform bulk website checking for multiple businesses.
+    
+    Args:
+        businesses: List of business dictionaries
+    
+    Returns:
+        List of business dictionaries with website status
+    """
+    results = []
+    
+    for i, business in enumerate(businesses):
+        try:
+            logger.info(f"Checking website for business {i+1}/{len(businesses)}: {business.get('name', 'Unknown')}")
+            
+            website_status = check_website_status(business)
+            business.update(website_status)
+            results.append(business)
+            
+            # Rate limiting
+            time.sleep(1)
+            
+        except Exception as e:
+            logger.error(f"Error checking business {i}: {e}")
+            business.update({
+                'has_website': False,
+                'website_url': None,
+                'website_quality_score': 0,
+                'social_media_profiles': [],
+                'detection_method': 'error',
+                'confidence_score': 0
+            })
+            results.append(business)
+    
+    return results
+
+# Legacy function for backward compatibility
+def check_business_website(business_name: str, phone: str = None) -> Optional[str]:
+    """
+    Legacy function for backward compatibility.
+    
+    Args:
+        business_name: Name of the business
+        phone: Business phone number
+    
+    Returns:
+        Website URL if found, None otherwise
+    """
+    business_data = {
+        'name': business_name,
+        'phone': phone or '',
+        'address': ''
+    }
+    
+    result = check_website_status(business_data)
+    return result.get('website_url')
