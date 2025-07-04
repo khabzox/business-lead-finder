@@ -410,15 +410,90 @@ class QuickAllCitiesSearch:
         else:
             return "standard"
     
-    async def search_city(self, city_key: str, search_size: str) -> int:
+    def display_search_method_menu(self) -> dict:
+        """Display Google Maps search method selection menu."""
+        console.print("\n[blue]🗺️ Choose Search Method:[/blue]")
+        
+        # Check if Google Maps is available
+        try:
+            from src.cli_interface import GOOGLE_MAPS_AVAILABLE
+            gmaps_available = GOOGLE_MAPS_AVAILABLE
+        except ImportError:
+            gmaps_available = False
+        
+        methods_table = Table()
+        methods_table.add_column("Option", style="cyan", width=8)
+        methods_table.add_column("Method", style="green", width=20)
+        methods_table.add_column("Features", style="yellow", width=35)
+        methods_table.add_column("Best For", style="magenta", width=25)
+        
+        methods_table.add_row("1", "🔍 Standard Search", "Basic business info, phone, address", "Fast, reliable results")
+        
+        if gmaps_available:
+            methods_table.add_row("2", "🔄 Enhanced Search", "Standard + Google Maps email discovery", "Best of both worlds")
+            methods_table.add_row("3", "🗺️ Google Maps Only", "📧 Emails, phone, ratings, reviews", "Maximum contact info")
+            max_choice = 3
+            console.print(methods_table)
+            console.print(f"\n[green]✅ Google Maps scraping available - Enhanced email discovery enabled![/green]")
+        else:
+            methods_table.add_row("2", "❌ Google Maps", "Not available (install selenium)", "Requires setup")
+            max_choice = 1
+            console.print(methods_table)
+            console.print(f"\n[yellow]⚠️ Google Maps scraping not available. Install: pip install selenium[/yellow]")
+        
+        console.print("\n[bold blue]💡 Google Maps Features:[/bold blue]")
+        console.print("• 📧 Automatic email discovery from business websites")
+        console.print("• 📞 Enhanced contact information (phone, address)")
+        console.print("• ⭐ Business ratings and review counts")
+        console.print("• 🆓 FREE service - no API keys required")
+        console.print("• 🎯 Better lead targeting for businesses without websites")
+        
+        method_choice = IntPrompt.ask(f"Select search method (1-{max_choice})", default=1)
+        
+        if not gmaps_available:
+            return {
+                'use_google_maps': False,
+                'google_maps_only': False,
+                'method_name': 'Standard Search'
+            }
+        
+        if method_choice == 2:
+            return {
+                'use_google_maps': True,
+                'google_maps_only': False,
+                'method_name': 'Enhanced Search (Standard + Google Maps)'
+            }
+        elif method_choice == 3:
+            return {
+                'use_google_maps': False,
+                'google_maps_only': True,
+                'method_name': 'Google Maps Only'
+            }
+        else:
+            return {
+                'use_google_maps': False,
+                'google_maps_only': False,
+                'method_name': 'Standard Search'
+            }
+    
+    async def search_city(self, city_key: str, search_size: str, search_method: dict = None) -> int:
         """Search businesses in a specific city."""
         city_info = MOROCCO_CITIES.get(city_key)
         if not city_info:
             console.print(f"[red]Error: City '{city_key}' not supported[/red]")
             return 0
         
+        # Default search method
+        if search_method is None:
+            search_method = {
+                'use_google_maps': False,
+                'google_maps_only': False,
+                'method_name': 'Standard Search'
+            }
+        
         console.print(f"\n[blue]{city_info['emoji']} Searching {city_info['name']} ({city_info['name_ar']})[/blue]")
         console.print(f"[yellow]{city_info['description']} - Population: {city_info['population']:,}[/yellow]")
+        console.print(f"[cyan]🔍 Method: {search_method['method_name']}[/cyan]")
         
         # Configure search parameters
         if search_size == "test":
@@ -475,8 +550,13 @@ class QuickAllCitiesSearch:
                     advance=1
                 )
                 
-                # Generate mock businesses for this query
-                businesses = self.generate_city_businesses(query, max_per_category)
+                # Execute real search if Google Maps options provided, otherwise generate mock data
+                if search_method and (search_method.get('use_google_maps') or search_method.get('google_maps_only')):
+                    # Use real search with Google Maps
+                    businesses = await self.execute_real_search(query, search_method, max_per_category)
+                else:
+                    # Generate mock businesses for this query (existing behavior)
+                    businesses = self.generate_city_businesses(query, max_per_category)
                 
                 for business in businesses:
                     business['search_timestamp'] = datetime.now().isoformat()
@@ -508,6 +588,99 @@ class QuickAllCitiesSearch:
         console.print(f"[blue]📁 Saved to: results/cities/{city_key}/searches/[/blue]")
         
         return total_businesses
+    
+    async def execute_real_search(self, query: Dict, search_method: dict, max_results: int) -> List[Dict]:
+        """Execute real business search using the main CLI with Google Maps options."""
+        try:
+            # Import the CLI search function
+            import sys
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+            
+            from cli_interface import search_google_maps_businesses
+            from business_search import search_businesses_all_sources
+            from argparse import Namespace
+            
+            location = f"{query['area']}, {query['city_name']}"
+            category = query['category']
+            
+            console.print(f"[blue]  🔍 Real search: {category} in {location}[/blue]")
+            
+            # Prepare search arguments
+            if search_method['google_maps_only']:
+                # Google Maps only
+                businesses = search_google_maps_businesses(
+                    query=category,
+                    location=location,
+                    max_results=max_results,
+                    headless=True
+                )
+                # Mark source
+                for business in businesses:
+                    business['source'] = 'google_maps_real'
+                    business['search_method'] = 'Google Maps Only'
+                    
+            elif search_method['use_google_maps']:
+                # Combined search
+                console.print(f"[cyan]    Standard search...[/cyan]")
+                standard_results = search_businesses_all_sources(
+                    query=category,
+                    location=location,
+                    max_results=max_results // 2,
+                    config={}
+                )
+                
+                console.print(f"[cyan]    Google Maps search...[/cyan]")
+                gmaps_results = search_google_maps_businesses(
+                    query=category,
+                    location=location,
+                    max_results=max_results // 2,
+                    headless=True
+                )
+                
+                # Combine and mark sources
+                businesses = standard_results + gmaps_results
+                for business in standard_results:
+                    business['search_method'] = 'Standard (Combined)'
+                for business in gmaps_results:
+                    business['search_method'] = 'Google Maps (Combined)'
+                    
+            else:
+                # Standard search only
+                businesses = search_businesses_all_sources(
+                    query=category,
+                    location=location,
+                    max_results=max_results,
+                    config={}
+                )
+                # Mark source
+                for business in businesses:
+                    business['search_method'] = 'Standard Only'
+            
+            # Add search metadata
+            for business in businesses:
+                business['search_timestamp'] = datetime.now().isoformat()
+                business['search_category'] = category
+                business['search_area'] = query['area']
+                business['city'] = query['city']
+                business['city_name'] = query['city_name']
+                business['real_search'] = True
+            
+            console.print(f"[green]    ✅ Found {len(businesses)} businesses[/green]")
+            
+            # Show helpful message if no businesses found
+            if len(businesses) == 0:
+                console.print("[yellow]    💡 No businesses found. Suggestions:[/yellow]")
+                console.print("[yellow]    • Generate sample data: python scripts/collect_real_data.py --generate-samples[/yellow]")
+                console.print("[yellow]    • Add API keys in .env file[/yellow]")
+                console.print("[yellow]    • Try Google Maps option[/yellow]")
+            
+            return businesses
+            
+        except Exception as e:
+            console.print(f"[red]    ❌ Real search failed: {e}[/red]")
+            console.print(f"[yellow]    📝 Falling back to mock data[/yellow]")
+            # Fallback to mock data
+            return self.generate_city_businesses(query, max_results)
     
     def generate_city_businesses(self, query: Dict, max_results: int) -> List[Dict]:
         """Generate realistic business data for a city query."""
@@ -764,12 +937,21 @@ class QuickAllCitiesSearch:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
     
-    async def search_all_cities(self, search_size: str) -> Dict[str, int]:
+    async def search_all_cities(self, search_size: str, search_method: dict = None) -> Dict[str, int]:
         """Search all supported Morocco cities."""
+        # Default search method
+        if search_method is None:
+            search_method = {
+                'use_google_maps': False,
+                'google_maps_only': False,
+                'method_name': 'Standard Search'
+            }
+        
         console.print(Panel(
             f"🇲🇦 ALL MOROCCO CITIES SEARCH\n"
             f"Searching ALL {len(MOROCCO_CITIES)} major cities in Morocco\n"
             f"Search Size: {search_size.upper()}\n"
+            f"Search Method: {search_method['method_name']}\n"
             f"Expected Results: {self.estimate_total_results(search_size):,}+ businesses",
             title="All Cities Search",
             border_style="blue"
@@ -789,7 +971,7 @@ class QuickAllCitiesSearch:
             console.print(f"\n[blue]🏙️ Starting {city_info['emoji']} {city_info['name']}...[/blue]")
             
             try:
-                total = await self.search_city(city_key, search_size)
+                total = await self.search_city(city_key, search_size, search_method)
                 results[city_key] = total
                 total_all_cities += total
                 
@@ -868,6 +1050,15 @@ class QuickAllCitiesSearch:
         )
         console.print(panel)
 
+def get_method_name(args) -> str:
+    """Get the method name based on arguments."""
+    if args.google_maps_only:
+        return "Google Maps Only"
+    elif args.use_google_maps:
+        return "Enhanced Search (Standard + Google Maps)"
+    else:
+        return "Standard Search"
+
 async def main():
     """Main function for quick all cities search."""
     import argparse
@@ -886,6 +1077,14 @@ async def main():
                        help="List all supported cities")
     parser.add_argument("--schedule", action="store_true", 
                        help="Setup automated scheduling")
+    
+    # Google Maps options
+    parser.add_argument("--use-google-maps", action="store_true",
+                       help="Use enhanced search (Standard + Google Maps)")
+    parser.add_argument("--google-maps-only", action="store_true",
+                       help="Use Google Maps scraping only (maximum email discovery)")
+    parser.add_argument("--headless", action="store_true", default=True,
+                       help="Run Google Maps scraper in headless mode")
     
     args = parser.parse_args()
     
@@ -923,21 +1122,41 @@ async def main():
         # Interactive mode
         city_choice = searcher.display_city_menu()
         search_size = searcher.display_search_size_menu()
+        search_method = searcher.display_search_method_menu()
+        
+        console.print(f"\n[green]🎯 Configuration Selected:[/green]")
+        console.print(f"[cyan]• City: {city_choice if city_choice != 'all' else 'All Morocco Cities'}[/cyan]")
+        console.print(f"[cyan]• Size: {search_size.upper()}[/cyan]")
+        console.print(f"[cyan]• Method: {search_method['method_name']}[/cyan]")
+        
+        if not Confirm.ask("\nProceed with this configuration?", default=True):
+            console.print("[yellow]Search cancelled.[/yellow]")
+            return
         
         if city_choice == "all":
-            await searcher.search_all_cities(search_size)
+            await searcher.search_all_cities(search_size, search_method)
         else:
-            await searcher.search_city(city_choice, search_size)
+            await searcher.search_city(city_choice, search_size, search_method)
     
     elif args.all_cities or args.city == "all":
         # Search all cities
         search_size = args.search_size or "standard"
-        await searcher.search_all_cities(search_size)
+        search_method = {
+            'use_google_maps': args.use_google_maps,
+            'google_maps_only': args.google_maps_only,
+            'method_name': get_method_name(args)
+        }
+        await searcher.search_all_cities(search_size, search_method)
     
     elif args.city:
         # Search specific city
         search_size = args.search_size or "standard"
-        await searcher.search_city(args.city, search_size)
+        search_method = {
+            'use_google_maps': args.use_google_maps,
+            'google_maps_only': args.google_maps_only,
+            'method_name': get_method_name(args)
+        }
+        await searcher.search_city(args.city, search_size, search_method)
     
     else:
         # Default: show help

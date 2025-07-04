@@ -5,20 +5,79 @@ Handles command-line interface commands and user interactions.
 
 import argparse
 import sys
+import logging
+import requests  # Add missing import
 from typing import Dict, Any, Optional, List
+from pathlib import Path
 
-from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Prompt, Confirm
+# Configure logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-from business_search import search_businesses_all_sources, remove_duplicates
-from website_checker import check_website_status
-from report_generator import generate_report
-from data_processor import export_data, analyze_leads
-from utils import validate_location, validate_categories
+# Import rich components with fallback
+try:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from rich.prompt import Prompt, Confirm
+    RICH_AVAILABLE = True
+except ImportError:
+    logger.warning("Rich library not available, falling back to basic output")
+    RICH_AVAILABLE = False
 
-console = Console()
+# Import local modules with proper error handling
+try:
+    from .business_search import search_businesses_all_sources, remove_duplicates
+    from .website_checker import check_website_status
+    from .report_generator import generate_report
+    from .data_processor import export_data, analyze_leads
+    from .utils import validate_location, validate_categories
+except ImportError as e:
+    logger.error(f"Failed to import required modules: {e}")
+    sys.exit(1)
+
+# Google Maps scraping (optional)
+try:
+    from .google_maps_scraper import search_google_maps_business
+    GOOGLE_MAPS_AVAILABLE = True
+except ImportError:
+    logger.info("Google Maps scraper not available - install selenium for enhanced features")
+    GOOGLE_MAPS_AVAILABLE = False
+
+# Initialize console with fallback
+if RICH_AVAILABLE:
+    console = Console()
+else:
+    # Fallback console functions
+    def console_print(*args, **kwargs):
+        print(*args)
+    
+    # Create a simple namespace for console functions
+    console = type('Console', (), {'print': console_print})()
+
+def search_google_maps_businesses(query: str, location: str, max_results: int = 50, headless: bool = True, rating_filter: str = "low") -> List[Dict[str, Any]]:
+    """
+    Wrapper function for Google Maps business search with intelligent filtering.
+    
+    Args:
+        query: Business type
+        location: Location to search
+        max_results: Maximum results
+        headless: Run browser headless
+        rating_filter: "low" (0-4.0 ratings - likely no website), "high" (4.5+), "all"
+    """
+    if not GOOGLE_MAPS_AVAILABLE:
+        console.print("[yellow]⚠️ Google Maps scraping not available. Install selenium and chrome driver.[/yellow]")
+        return []
+    
+    try:
+        from .google_maps_scraper import search_google_maps_business
+        businesses = search_google_maps_business(query, location, max_results, rating_filter)
+        return businesses
+            
+    except Exception as e:
+        console.print(f"[red]❌ Google Maps scraping failed: {e}[/red]")
+        return []
 
 def create_cli_parser() -> argparse.ArgumentParser:
     """Create command line interface parser."""
@@ -30,6 +89,8 @@ Examples:
   python main.py search --location "Marrakesh, Morocco" --categories restaurants --filter no-website
   python main.py search --location "Casablanca, Morocco" --categories hotels spas --ai-analysis
   python main.py search --location "Rabat, Morocco" --categories cafes --filter bad-website --sort-by rating
+  python main.py search --location "Fez, Morocco" --categories restaurants --use-google-maps
+  python main.py search --location "Tangier, Morocco" --categories spas --google-maps-only --max-results 30
   python main.py check --business-name "Restaurant Atlas" --phone "+212524443322"
   python main.py report --input data/leads.json --output results/report.html
   python main.py export --format csv --output results/leads.csv --filter "no_website=true"
@@ -58,6 +119,16 @@ Examples:
     search_parser.add_argument('--ai-analysis', action='store_true', help='Enable AI-powered analysis with Groq')
     search_parser.add_argument('--sort-by', choices=['lead-score', 'rating', 'name'], default='lead-score',
                              help='Sort results by specified field')
+    search_parser.add_argument('--use-google-maps', action='store_true', 
+                             help='Use Google Maps scraping for enhanced business discovery with emails (FREE method)')
+    search_parser.add_argument('--google-maps-only', action='store_true',
+                             help='Use ONLY Google Maps scraping (no other sources)')
+    search_parser.add_argument('--headless', action='store_true', default=True,
+                             help='Run Google Maps scraper in headless mode (default: True)')
+    search_parser.add_argument('--demo', action='store_true',
+                             help='Use demo/sample data for testing the system')
+    search_parser.add_argument('--rating-filter', choices=['low', 'high', 'all'], default='low',
+                             help='Google Maps rating filter: low (0-4.0), high (4.5+), all (no filter)')
     
     # Check command
     check_parser = subparsers.add_parser('check', help='Check if a business has a website')
@@ -113,10 +184,25 @@ def handle_cli_command(args: argparse.Namespace, config: Dict[str, Any]) -> bool
         return False
 
 def handle_search_command(args: argparse.Namespace, config: Dict[str, Any]) -> bool:
-    """Handle search command with enhanced filtering and AI analysis."""
+    """Handle search command with enhanced filtering, AI analysis, and Google Maps scraping."""
     console.print(f"[blue]🔍 Searching for businesses in: {args.location}[/blue]")
     console.print(f"[blue]📊 Categories: {', '.join(args.categories)}[/blue]")
     console.print(f"[blue]🎯 Filter: {args.filter}[/blue]")
+    
+    # Check if demo mode is enabled
+    if args.demo:
+        console.print("[yellow]🎪 Demo Mode: Using sample data for testing[/yellow]")
+        return handle_demo_search(args, config)
+    
+    # Display search method info
+    if args.google_maps_only:
+        console.print("[blue]🗺️ Search Method: Google Maps ONLY (with email discovery)[/blue]")
+        console.print(f"[blue]⭐ Rating Filter: {args.rating_filter} ratings ({'0-4.0' if args.rating_filter == 'low' else '4.5+' if args.rating_filter == 'high' else 'all'})[/blue]")
+    elif args.use_google_maps:
+        console.print("[blue]🔄 Search Method: Combined (Standard + Google Maps)[/blue]")
+        console.print(f"[blue]⭐ Google Maps Rating Filter: {args.rating_filter} ratings[/blue]")
+    else:
+        console.print("[blue]🔍 Search Method: Standard sources[/blue]")
     
     if args.ai_analysis:
         console.print("[blue]🤖 AI Analysis: Enabled[/blue]")
@@ -131,19 +217,68 @@ def handle_search_command(args: argparse.Namespace, config: Dict[str, Any]) -> b
         TextColumn("[progress.description]{task.description}"),
         transient=True,
     ) as progress:
-        task = progress.add_task("Searching businesses...", total=len(categories))
-        
         all_results = []
-        for category in categories:
-            progress.update(task, description=f"Searching {category}...")
-            results = search_businesses_all_sources(
-                query=category,
-                location=location,
-                max_results=args.max_results,
-                config=config
-            )
-            all_results.extend(results)
-            progress.advance(task)
+        
+        if args.google_maps_only:
+            # Use ONLY Google Maps scraping
+            total_tasks = len(categories)
+            task = progress.add_task("Searching with Google Maps...", total=total_tasks)
+            
+            for category in categories:
+                progress.update(task, description=f"Google Maps: {category}...")
+                gmaps_results = search_google_maps_businesses(
+                    query=category,
+                    location=location,
+                    max_results=args.max_results,
+                    headless=args.headless,
+                    rating_filter=args.rating_filter
+                )
+                all_results.extend(gmaps_results)
+                progress.advance(task)
+                
+        elif args.use_google_maps:
+            # Combined search: Standard + Google Maps
+            total_tasks = len(categories) * 2  # Both standard and Google Maps
+            task = progress.add_task("Combined search...", total=total_tasks)
+            
+            for category in categories:
+                # Standard search
+                progress.update(task, description=f"Standard search: {category}...")
+                standard_results = search_businesses_all_sources(
+                    query=category,
+                    location=location,
+                    max_results=args.max_results,
+                    config=config
+                )
+                all_results.extend(standard_results)
+                progress.advance(task)
+                
+                # Google Maps search
+                progress.update(task, description=f"Google Maps: {category}...")
+                gmaps_results = search_google_maps_businesses(
+                    query=category,
+                    location=location,
+                    max_results=args.max_results // 2,  # Split results between methods
+                    headless=args.headless,
+                    rating_filter=args.rating_filter
+                )
+                all_results.extend(gmaps_results)
+                progress.advance(task)
+                
+        else:
+            # Standard search only
+            task = progress.add_task("Searching businesses...", total=len(categories))
+            
+            for category in categories:
+                progress.update(task, description=f"Searching {category}...")
+                results = search_businesses_all_sources(
+                    query=category,
+                    location=location,
+                    max_results=args.max_results,
+                    config=config
+                )
+                all_results.extend(results)
+                progress.advance(task)
     
     # Remove duplicates
     unique_results = remove_duplicates(all_results)
@@ -165,7 +300,7 @@ def handle_search_command(args: argparse.Namespace, config: Dict[str, Any]) -> b
             console.print(f"[yellow]⚠️ AI analysis failed: {e}[/yellow]")
     
     # Display results
-    display_search_results(sorted_results, args.filter)
+    display_search_results(sorted_results, args.filter, use_google_maps=args.use_google_maps or args.google_maps_only)
     
     # Save results if output specified
     if args.output:
@@ -322,15 +457,21 @@ def sort_results(results: List[Dict[str, Any]], sort_by: str) -> List[Dict[str, 
     else:
         return results
 
-def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'all') -> None:
+def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'all', use_google_maps: bool = False) -> None:
     """Display search results in organized format."""
     if not results:
         console.print("[red]❌ No businesses found matching your criteria.[/red]")
+        console.print("\n[yellow]💡 Try these suggestions:[/yellow]")
+        console.print("• Generate sample data: [cyan]python scripts/collect_real_data.py --generate-samples[/cyan]")
+        console.print("• Add API keys in .env file for better results")
+        console.print("• Try different locations or business categories")
+        console.print("• Use Google Maps option: [cyan]--use-google-maps[/cyan] or [cyan]--google-maps-only[/cyan]")
         return
     
     # Summary stats
     total_results = len(results)
     no_website_count = len([r for r in results if not r.get('website')])
+    with_emails_count = len([r for r in results if r.get('emails')])
     avg_lead_score = sum(r.get('lead_score', 0) for r in results) / total_results if total_results > 0 else 0
     
     # Display summary
@@ -338,6 +479,11 @@ def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'al
     console.print(f"[green]Total Businesses Found: {total_results}[/green]")
     console.print(f"[yellow]Without Website: {no_website_count} ({no_website_count/total_results*100:.1f}%)[/yellow]")
     console.print(f"[blue]Average Lead Score: {avg_lead_score:.1f}/100[/blue]")
+    
+    # Google Maps specific stats
+    if use_google_maps:
+        console.print(f"[magenta]📧 With Email Addresses: {with_emails_count} ({with_emails_count/total_results*100:.1f}%)[/magenta]")
+        console.print(f"[cyan]🗺️ Google Maps Data Enhanced: {len([r for r in results if r.get('source') == 'google_maps_scraper'])} businesses[/cyan]")
     
     # Filter-specific messages
     if filter_type == 'no-website':
@@ -348,7 +494,7 @@ def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'al
     # Display top results
     console.print(f"\n[bold blue]🏆 TOP OPPORTUNITIES[/bold blue]")
     
-    # Create table for results
+    # Create table for results - enhanced for Google Maps
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Rank", style="dim", width=6)
     table.add_column("Business Name", style="bold")
@@ -356,7 +502,13 @@ def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'al
     table.add_column("Rating", style="yellow")
     table.add_column("Lead Score", style="green")
     table.add_column("Website Status", style="red")
-    table.add_column("Opportunity", style="bold red")
+    
+    if use_google_maps:
+        table.add_column("Email Count", style="magenta")
+        table.add_column("Contact Level", style="bold cyan")
+        table.add_column("Lead Priority", style="bold red")
+    else:
+        table.add_column("Opportunity", style="bold red")
     
     for i, business in enumerate(results[:20], 1):  # Show top 20
         name = business.get('name', 'Unknown')[:30]
@@ -372,15 +524,30 @@ def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'al
             website_status = "❌ NO WEBSITE"
             opportunity = "🔥 HIGH PRIORITY"
         
-        table.add_row(
-            str(i),
-            name,
-            category,
-            rating,
-            lead_score,
-            website_status,
-            opportunity
-        )
+        if use_google_maps:
+            email_count = len(business.get('emails', []))
+            email_display = f"📧 {email_count}" if email_count > 0 else "No emails"
+            
+            # Contact level based on available information
+            contact_level = "🔥 COMPLETE"
+            if business.get('phone') and business.get('emails') and business.get('address'):
+                contact_level = "🔥 COMPLETE"
+            elif business.get('phone') or business.get('emails'):
+                contact_level = "⚡ GOOD"
+            else:
+                contact_level = "📍 BASIC"
+            
+            # Lead priority from Google Maps filtering
+            lead_priority = business.get('lead_priority', 'MEDIUM')
+            priority_display = {
+                'HIGH': '🔥 HIGH',
+                'MEDIUM': '⚡ MEDIUM', 
+                'UPGRADE': '📈 UPGRADE'
+            }.get(lead_priority, '⚡ MEDIUM')
+            
+            table.add_row(str(i), name, category, rating, lead_score, website_status, email_display, contact_level, priority_display)
+        else:
+            table.add_row(str(i), name, category, rating, lead_score, website_status, opportunity)
     
     console.print(table)
     
@@ -400,28 +567,52 @@ def display_search_results(results: List[Dict[str, Any]], filter_type: str = 'al
     contact_table = Table(show_header=True, header_style="bold green")
     contact_table.add_column("Business", style="bold")
     contact_table.add_column("Phone", style="blue")
-    contact_table.add_column("Address", style="dim")
-    contact_table.add_column("Email Template", style="cyan")
+    
+    if use_google_maps:
+        contact_table.add_column("Emails", style="magenta")
+        contact_table.add_column("Address", style="dim")
+    else:
+        contact_table.add_column("Address", style="dim")
+        contact_table.add_column("Email Template", style="cyan")
     
     for business in results[:5]:
         name = business.get('name', 'Unknown')[:25]
         phone = business.get('phone', 'N/A')
         address = business.get('address', 'N/A')[:30]
         
-        # Check if AI generated email is available
-        has_ai_email = business.get('personalized_email', False)
-        email_status = "🤖 AI Generated" if has_ai_email else "📧 Standard"
-        
-        contact_table.add_row(name, phone, address, email_status)
+        if use_google_maps:
+            emails = business.get('emails', [])
+            email_display = ', '.join(emails[:2]) if emails else 'N/A'  # Show first 2 emails
+            if len(emails) > 2:
+                email_display += f" (+{len(emails)-2} more)"
+            
+            contact_table.add_row(name, phone, email_display, address)
+        else:
+            # Check if AI generated email is available
+            has_ai_email = business.get('personalized_email', False)
+            email_status = "🤖 AI Generated" if has_ai_email else "📧 Standard"
+            
+            contact_table.add_row(name, phone, address, email_status)
     
     console.print(contact_table)
+    
+    # Google Maps specific tips
+    if use_google_maps and with_emails_count > 0:
+        console.print(f"\n[bold magenta]📧 EMAIL OUTREACH TIPS:[/bold magenta]")
+        console.print("• Use professional email templates")
+        console.print("• Personalize messages based on business type")
+        console.print("• Mention specific website benefits for their industry")
+        console.print("• Include your portfolio examples")
+        console.print("• Follow up within 3-5 business days")
     
     if filter_type == 'no-website':
         console.print(f"\n[bold yellow]💡 NEXT STEPS:[/bold yellow]")
         console.print("1. Contact businesses with highest lead scores first")
         console.print("2. Use provided phone numbers for direct contact")
-        console.print("3. Reference their excellent ratings in your pitch")
-        console.print("4. Emphasize missed online opportunities")
+        if use_google_maps:
+            console.print("3. Send personalized emails to discovered email addresses")
+        console.print("4. Reference their excellent ratings in your pitch")
+        console.print("5. Emphasize missed online opportunities")
     
     console.print(f"\n[green]✅ Search completed successfully![/green]")
 
@@ -463,7 +654,7 @@ def display_analysis_results(analysis: Dict[str, Any]):
 
 def show_interactive_help():
     """Show help for interactive mode."""
-    help_text = """
+    help_text = f"""
 [bold blue]Available Commands:[/bold blue]
 
 • [green]search[/green] - Search for businesses interactively
@@ -473,25 +664,69 @@ def show_interactive_help():
 • [green]help[/green] - Show this help message
 • [green]exit[/green] - Exit interactive mode
 
+[bold blue]Google Maps Features:[/bold blue]
+• [magenta]Enhanced Search[/magenta] - Discover business emails automatically
+• [magenta]Contact Discovery[/magenta] - Find phone numbers and addresses
+• [magenta]Website Detection[/magenta] - Identify businesses without websites
+• [cyan]Status: {'✅ Available' if GOOGLE_MAPS_AVAILABLE else '❌ Not Available'}[/cyan]
+
 [bold blue]Tips:[/bold blue]
 • Use Tab completion for faster input
 • All data is automatically saved
 • Use Ctrl+C to cancel any operation
+• Google Maps search provides email addresses for direct outreach
+• Combine with AI analysis for best results
     """
     console.print(help_text)
 
 def interactive_search(config: Dict[str, Any]):
-    """Interactive search mode."""
+    """Interactive search mode with Google Maps options."""
     console.print("[bold blue]🔍 Interactive Business Search[/bold blue]")
     
     location = Prompt.ask("Enter location", default="Marrakesh, Morocco")
     categories_input = Prompt.ask("Enter categories (comma-separated)", default="restaurants,hotels")
     max_results = Prompt.ask("Maximum results per category", default="20")
     
+    # Google Maps options
+    if GOOGLE_MAPS_AVAILABLE:
+        console.print("\n[bold cyan]🗺️ Google Maps Enhanced Search Options:[/bold cyan]")
+        console.print("1. Standard search only")
+        console.print("2. Standard + Google Maps (recommended for emails)")
+        console.print("3. Google Maps only")
+        
+        search_type = Prompt.ask("Choose search type", choices=["1", "2", "3"], default="2")
+        
+        use_google_maps = search_type in ["2", "3"]
+        google_maps_only = search_type == "3"
+        
+        if use_google_maps:
+            console.print("[green]✅ Google Maps enhanced search enabled - will discover email addresses![/green]")
+    else:
+        console.print("[yellow]⚠️ Google Maps scraping not available. Install selenium and chrome driver for enhanced features.[/yellow]")
+        use_google_maps = False
+        google_maps_only = False
+    
+    # Filter options
+    console.print("\n[bold yellow]🎯 Filter Options:[/bold yellow]")
+    console.print("1. All businesses")
+    console.print("2. Businesses without websites")
+    console.print("3. Businesses with poor websites")
+    
+    filter_choice = Prompt.ask("Choose filter", choices=["1", "2", "3"], default="2")
+    filter_map = {"1": "all", "2": "no-website", "3": "bad-website"}
+    filter_type = filter_map[filter_choice]
+    
+    # AI Analysis option
+    ai_analysis = Confirm.ask("Enable AI analysis?", default=False)
+    
     categories = [cat.strip() for cat in categories_input.split(',')]
     
     # Confirm search
-    if Confirm.ask(f"Search for {categories} in {location}?"):
+    search_desc = f"{categories} in {location}"
+    if use_google_maps:
+        search_desc += " (with Google Maps email discovery)"
+    
+    if Confirm.ask(f"Search for {search_desc}?"):
         # Simulate search command
         from argparse import Namespace
         args = Namespace(
@@ -499,7 +734,13 @@ def interactive_search(config: Dict[str, Any]):
             categories=categories,
             max_results=int(max_results),
             output=None,
-            format='json'
+            format='json',
+            filter=filter_type,
+            ai_analysis=ai_analysis,
+            use_google_maps=use_google_maps,
+            google_maps_only=google_maps_only,
+            headless=True,
+            sort_by='lead-score'  # Add missing attribute
         )
         handle_search_command(args, config)
 
@@ -539,7 +780,7 @@ def interactive_report(config: Dict[str, Any]):
     handle_report_command(args, config)
 
 def show_status(config: Dict[str, Any]):
-    """Show system status."""
+    """Show system status including Google Maps scraping."""
     console.print("[bold blue]📊 System Status[/bold blue]")
     
     # Check API availability
@@ -549,25 +790,69 @@ def show_status(config: Dict[str, Any]):
     table.add_column("Service", style="cyan")
     table.add_column("Status", style="green")
     table.add_column("Limit", style="yellow")
+    table.add_column("Notes", style="dim")
     
     for service, status in api_status.items():
         status_icon = "✅" if status['available'] else "❌"
         table.add_row(
             service,
             f"{status_icon} {status['status']}",
-            status.get('limit', 'N/A')
+            status.get('limit', 'N/A'),
+            status.get('notes', '')
         )
     
     console.print(table)
+    
+    # Google Maps specific status
+    console.print(f"\n[bold magenta]🗺️ Google Maps Scraping:[/bold magenta]")
+    if GOOGLE_MAPS_AVAILABLE:
+        console.print("[green]✅ Available - Enhanced email discovery enabled[/green]")
+        console.print("[dim]Features: Business emails, phone numbers, ratings, contact info[/dim]")
+    else:
+        console.print("[red]❌ Not Available[/red]")
+        console.print("[dim]Install: pip install selenium[/dim]")
+        console.print("[dim]Download: Chrome WebDriver[/dim]")
+    
+    console.print(f"\n[bold yellow]💡 Recommendations:[/bold yellow]")
+    if not GOOGLE_MAPS_AVAILABLE:
+        console.print("• Install Google Maps scraping for email discovery")
+    console.print("• Use combined search for best results")
+    console.print("• Enable AI analysis for lead scoring")
+    console.print("• Save results with --output for tracking")
 
 def check_api_availability(config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    """Check availability of various APIs."""
-    # This would check each API service
+    """Check availability of various APIs and services."""
     return {
-        'OpenStreetMap': {'available': True, 'status': 'Available', 'limit': 'Unlimited'},
-        'Foursquare': {'available': bool(config.get('foursquare_client_id')), 'status': 'Available', 'limit': '1000/day'},
-        'SerpAPI': {'available': bool(config.get('serpapi_key')), 'status': 'Available', 'limit': '100/month'},
-        'Google Places': {'available': bool(config.get('google_places_key')), 'status': 'Optional', 'limit': 'Varies'},
+        'OpenStreetMap': {
+            'available': True, 
+            'status': 'Available', 
+            'limit': 'Unlimited',
+            'notes': 'Free mapping service'
+        },
+        'Foursquare': {
+            'available': bool(config.get('foursquare_client_id')), 
+            'status': 'Available' if config.get('foursquare_client_id') else 'No API Key', 
+            'limit': '1000/day',
+            'notes': 'Business directory'
+        },
+        'SerpAPI': {
+            'available': bool(config.get('serpapi_key')), 
+            'status': 'Available' if config.get('serpapi_key') else 'No API Key', 
+            'limit': '100/month',
+            'notes': 'Google search results'
+        },
+        'Google Places': {
+            'available': bool(config.get('google_places_key')), 
+            'status': 'Optional', 
+            'limit': 'Varies',
+            'notes': 'Enhanced business data'
+        },
+        'Google Maps Scraper': {
+            'available': GOOGLE_MAPS_AVAILABLE,
+            'status': 'Available' if GOOGLE_MAPS_AVAILABLE else 'Missing Dependencies',
+            'limit': 'FREE',
+            'notes': 'Email discovery, contact info'
+        }
     }
 
 def save_search_results(results: list, output_path: str, format: str):
@@ -587,3 +872,160 @@ def save_search_results(results: list, output_path: str, format: str):
                 writer = csv.DictWriter(f, fieldnames=results[0].keys())
                 writer.writeheader()
                 writer.writerows(results)
+
+def handle_demo_search(args: argparse.Namespace, config: Dict[str, Any]) -> bool:
+    """Handle demo search with sample data generation."""
+    import json
+    import random
+    from datetime import datetime
+    
+    console.print("[yellow]🎪 Generating sample demo data...[/yellow]")
+    
+    # Generate sample data for each category
+    all_results = []
+    
+    for category in args.categories:
+        # Generate 15-25 businesses per category
+        count = random.randint(15, 25)
+        demo_businesses = generate_demo_data(args.location, category, count)
+        all_results.extend(demo_businesses)
+    
+    # Apply filters
+    if args.filter == 'no-website':
+        filtered_results = [b for b in all_results if not b.get('website')]
+    elif args.filter == 'bad-website':
+        filtered_results = [b for b in all_results if b.get('website_status') == 'poor']
+    else:
+        filtered_results = all_results
+    
+    # Sort results
+    if args.sort_by == 'lead-score':
+        filtered_results.sort(key=lambda x: x.get('lead_score', 0), reverse=True)
+    elif args.sort_by == 'rating':
+        filtered_results.sort(key=lambda x: x.get('rating', 0), reverse=True)
+    elif args.sort_by == 'name':
+        filtered_results.sort(key=lambda x: x.get('name', ''))
+    
+    # Limit results
+    final_results = filtered_results[:args.max_results]
+    
+    # Display results
+    display_search_results(final_results, args.filter, use_google_maps=False)
+    
+    # Save results if requested
+    if args.output:
+        export_data(final_results, args.output, args.format)
+        console.print(f"[green]✅ Results saved to: {args.output}[/green]")
+    
+    console.print("[yellow]💡 This was demo data. For real data, remove --demo flag and add API keys.[/yellow]")
+    return True
+
+def generate_demo_data(location: str, category: str, count: int = 20) -> List[Dict[str, Any]]:
+    """Generate realistic demo business data."""
+    import random
+    from datetime import datetime
+    
+    # Moroccan business name components
+    prefixes = ["Riad", "Maison", "Dar", "Restaurant", "Café", "Hotel", "Spa", "Boutique", "Atlas", "Medina"]
+    suffixes = ["Al Baraka", "Majorelle", "Bahia", "Saadian", "Koutoubia", "Agafay", "Atlas", "Berbère", "Royal"]
+    
+    businesses = []
+    
+    for i in range(count):
+        name = f"{random.choice(prefixes)} {random.choice(suffixes)}"
+        
+        # 70% have no website (realistic for Morocco small businesses)
+        has_website = random.random() < 0.3
+        has_email = random.random() < 0.4
+        has_phone = random.random() < 0.85
+        
+        business = {
+            'name': name,
+            'address': f"{random.randint(1, 200)} {random.choice(['Rue Mohammed V', 'Rue Hassan II', 'Avenue de la Liberté'])}, {location.split(',')[0]}",
+            'phone': f"+212 {random.randint(500, 699)}-{random.randint(100000, 999999)}" if has_phone else "",
+            'website': f"www.{name.lower().replace(' ', '').replace('ç', 'c')}.ma" if has_website else "",
+            'emails': [f"contact@{name.lower().replace(' ', '').replace('ç', 'c')}.ma"] if has_email else [],
+            'category': category,
+            'rating': round(random.uniform(3.2, 4.9), 1),
+            'review_count': random.randint(8, 180),
+            'lead_score': random.randint(65, 98) if not has_website else random.randint(40, 75),
+            'source': 'demo_data',
+            'search_timestamp': datetime.now().isoformat(),
+            'location': location,
+            'verified': False,
+            'website_status': 'none' if not has_website else random.choice(['good', 'poor', 'outdated'])
+        }
+        
+        businesses.append(business)
+    
+    return businesses
+
+def validate_search_parameters(args: argparse.Namespace) -> Dict[str, Any]:
+    """
+    Validate and sanitize search parameters.
+    
+    Args:
+        args: Parsed command line arguments
+        
+    Returns:
+        Dict with validated parameters
+        
+    Raises:
+        ValueError: If validation fails
+    """
+    errors = []
+    
+    # Validate location
+    if not args.location or len(args.location.strip()) < 3:
+        errors.append("Location must be at least 3 characters long")
+    
+    # Validate categories
+    if not args.categories or len(args.categories) == 0:
+        errors.append("At least one category must be specified")
+    
+    # Validate max_results
+    if hasattr(args, 'max_results'):
+        if args.max_results < 1 or args.max_results > 1000:
+            errors.append("Max results must be between 1 and 1000")
+    
+    # Validate output path
+    if hasattr(args, 'output') and args.output:
+        output_path = Path(args.output)
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            errors.append(f"Cannot create output directory: {e}")
+    
+    if errors:
+        raise ValueError("Validation failed:\n" + "\n".join(f"- {error}" for error in errors))
+    
+    return {
+        'location': args.location.strip(),
+        'categories': [cat.strip().lower() for cat in args.categories],
+        'max_results': getattr(args, 'max_results', 50),
+        'output': getattr(args, 'output', None)
+    }
+
+def handle_api_errors(func):
+    """
+    Decorator for handling API errors gracefully.
+    """
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except requests.exceptions.ConnectionError:
+            logger.error("Network connection error - check your internet connection")
+            if RICH_AVAILABLE:
+                console.print("[red]❌ Network error: Check your internet connection[/red]")
+            return []
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout - API server may be slow")
+            if RICH_AVAILABLE:
+                console.print("[yellow]⏰ Request timeout - trying alternative sources[/yellow]")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error in {func.__name__}: {e}")
+            if RICH_AVAILABLE:
+                console.print(f"[red]❌ Error: {e}[/red]")
+            return []
+    return wrapper

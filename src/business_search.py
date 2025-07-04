@@ -1,23 +1,99 @@
 """
-Business Search Module - Free Implementation
-Searches for businesses using free APIs and web scraping.
+Business Search Module - Enhanced Implementation
+Searches for businesses using free APIs and web scraping with improved error handling.
 """
 
 import requests
 import time
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from bs4 import BeautifulSoup
 import json
 import random
 import re
 from urllib.parse import urlencode, quote
 from datetime import datetime
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
+import aiohttp
 
 from config.settings import SEARCH_CONFIG, API_KEYS
 from utils import clean_phone_number, validate_business_data, rate_limit
 
 logger = logging.getLogger(__name__)
+
+# Search result cache
+_search_cache = {}
+
+def handle_search_error(error: Exception, context: str = "search") -> None:
+    """Handle search-related errors with proper logging."""
+    logger.error(f"{context} error: {error}")
+
+def handle_rate_limit_error(error: Exception, context: str = "API") -> None:
+    """Handle rate limit errors with proper logging."""
+    logger.warning(f"{context} rate limit exceeded: {error}")
+    time.sleep(2)  # Wait before retrying
+
+def async_rate_limit(calls_per_second: float = 1.0):
+    """
+    Async rate limiting decorator.
+    
+    Args:
+        calls_per_second: Maximum calls per second allowed
+    """
+    min_interval = 1.0 / calls_per_second
+    last_called = [0.0]
+    
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            elapsed = time.time() - last_called[0]
+            left_to_wait = min_interval - elapsed
+            if left_to_wait > 0:
+                await asyncio.sleep(left_to_wait)
+            ret = await func(*args, **kwargs)
+            last_called[0] = time.time()
+            return ret
+        return wrapper
+    return decorator
+
+def cache_search_results(ttl_seconds: int = 3600):
+    """
+    Cache search results to avoid redundant API calls.
+    
+    Args:
+        ttl_seconds: Time to live for cached results
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create cache key from function name and arguments
+            cache_key = f"{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
+            
+            # Check if we have cached result
+            if cache_key in _search_cache:
+                cached_data, timestamp = _search_cache[cache_key]
+                if time.time() - timestamp < ttl_seconds:
+                    logger.debug(f"Using cached result for {func.__name__}")
+                    return cached_data
+            
+            # Execute function and cache result
+            result = func(*args, **kwargs)
+            _search_cache[cache_key] = (result, time.time())
+            
+            # Clean old cache entries
+            current_time = time.time()
+            keys_to_remove = [
+                key for key, (_, timestamp) in _search_cache.items()
+                if current_time - timestamp > ttl_seconds
+            ]
+            for key in keys_to_remove:
+                del _search_cache[key]
+            
+            return result
+        return wrapper
+    return decorator
 
 # Free API URLs
 FREE_API_URLS = {
@@ -96,6 +172,26 @@ def search_businesses_all_sources(
     
     logger.info(f"Total unique businesses found: {len(enhanced_businesses)}")
     
+    # Show helpful message if no businesses found
+    if len(enhanced_businesses) == 0:
+        logger.warning("No businesses found from any source")
+        print("\n" + "="*60)
+        print("🚨 NO BUSINESS DATA FOUND")
+        print("="*60)
+        print("💡 SUGGESTIONS:")
+        print("1. 📊 Generate sample data first to test the system:")
+        print("   python scripts/collect_real_data.py --generate-samples")
+        print("   python main.py search --location 'Marrakesh' --categories restaurants --demo")
+        print("")
+        print("2. 🔑 Add API keys for better results:")
+        print("   • Copy .env.example to .env")
+        print("   • Add your API keys (Foursquare, SerpAPI)")
+        print("   • Free tiers available for testing")
+        print("")
+        print("3. 🌐 Check internet connection and try again")
+        print("4. 📍 Try different location or business categories")
+        print("="*60)
+    
     return enhanced_businesses[:max_results]
 
 @rate_limit(seconds=1)
@@ -127,8 +223,20 @@ def search_openstreetmap(query: str, location: str, max_results: int = 20) -> Li
         }
         
         headers = {
-            'User-Agent': random.choice(USER_AGENTS)
+            'User-Agent': 'BusinessLeadFinder/1.0 (https://example.com/contact; contact@example.com)',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.openstreetmap.org/',
+            'DNT': '1',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin'
         }
+        
+        # Add more substantial rate limiting delay for OpenStreetMap
+        time.sleep(random.uniform(2, 4))
         
         response = requests.get(
             FREE_API_URLS['nominatim'],
@@ -653,10 +761,25 @@ def enhance_business_data(businesses: List[Dict[str, Any]]) -> List[Dict[str, An
             business.setdefault('address', '')
             business.setdefault('phone', '')
             business.setdefault('email', '')
+            business.setdefault('emails', [])  # List of emails for enhanced contact info
             business.setdefault('website', '')
             business.setdefault('rating', 0)
             business.setdefault('review_count', 0)
             business.setdefault('source', 'unknown')
+            
+            # If email field exists but emails list is empty, add to emails list
+            if business.get('email') and not business.get('emails'):
+                business['emails'] = [business['email']]
+            elif business.get('emails') and not business.get('email'):
+                business['email'] = business['emails'][0] if business['emails'] else ''
+            
+            # Quality filtering: Skip businesses with websites but low ratings (under 4.5)
+            has_website = business.get('website', '').strip()
+            rating = business.get('rating', 0)
+            
+            # If business has website but rating is under 4.5, skip it (not a good lead)
+            if has_website and rating > 0 and rating < 4.5:
+                continue  # Skip this business
             
             enhanced_businesses.append(business)
             

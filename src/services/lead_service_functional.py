@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    from ..data.real_sources import real_data_collector
+    from ..data.real_sources import collect_business_data
     from ..config.config_manager import get_search_config, get_lead_scoring_config
     from ..website_checker import enhanced_website_detection
     from ..business_search import calculate_lead_score
@@ -20,7 +20,7 @@ except ImportError:
     import sys
     from pathlib import Path
     sys.path.append(str(Path(__file__).parent.parent))
-    from data.real_sources import real_data_collector
+    from data.real_sources import collect_business_data
     from config.config_manager import get_search_config, get_lead_scoring_config
     from website_checker import enhanced_website_detection
     from business_search import calculate_lead_score
@@ -76,7 +76,7 @@ async def search_business_leads(
     logger.info(f"Searching for {category} in {location} (max: {max_results})")
     
     # Collect raw business data
-    businesses = await real_data_collector.collect_business_data(
+    businesses = await collect_business_data(
         query=category,
         location=location,
         max_results=max_results
@@ -105,9 +105,10 @@ async def search_business_leads(
         
         # Enhance with website check if requested
         if enhance_with_website_check and not business.get('website'):
-            website_result = enhanced_website_detection(
+            website_result = await enhanced_website_detection(
                 business_name=business.get('name', ''),
-                category=business.get('category', '')
+                phone_number=business.get('phone', ''),
+                address=business.get('address', '')
             )
             if website_result:
                 business['website'] = website_result.get('website', '')

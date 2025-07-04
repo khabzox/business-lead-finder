@@ -10,10 +10,16 @@ import time
 from typing import List, Dict, Any
 import logging
 from bs4 import BeautifulSoup
+import argparse
+import os
+import sys
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+sys.path.append(os.path.dirname(__file__))
 
 def get_morocco_businesses_from_osm(location: str, category: str, max_results: int = 20) -> List[Dict[str, Any]]:
     """
@@ -280,10 +286,105 @@ def collect_real_data():
     
     return enhanced_businesses
 
+def generate_sample_data(location: str = "Marrakesh, Morocco", category: str = "restaurants", count: int = 25) -> List[Dict[str, Any]]:
+    """
+    Generate realistic sample business data for testing the system.
+    """
+    import random
+    
+    # Moroccan business name components
+    business_prefixes = [
+        "Riad", "Maison", "Dar", "Restaurant", "Café", "Hotel", "Spa", "Boutique",
+        "Atlas", "Marrakech", "Medina", "Kasbah", "Palais", "Villa", "Ryad"
+    ]
+    
+    business_suffixes = [
+        "Al Baraka", "Essaouira", "Majorelle", "Bahia", "Saadian", "Ben Youssef",
+        "Koutoubia", "Agafay", "Ourika", "Atlas", "Berbère", "Andalous", "Royal"
+    ]
+    
+    # Generate realistic business data
+    businesses = []
+    
+    for i in range(count):
+        name = f"{random.choice(business_prefixes)} {random.choice(business_suffixes)}"
+        
+        # Generate realistic contact info - ensure mix of businesses
+        has_website = random.random() < 0.4  # 40% have websites  
+        has_email = random.random() < 0.6    # 60% have emails (more likely than websites)
+        has_phone = random.random() < 0.85   # 85% have phones
+        
+        # Ensure at least some businesses have emails for testing
+        if i < count // 3:  # First third always have emails
+            has_email = True
+        
+        # Create clean name for email/website generation
+        clean_name = name.lower().replace(' ', '').replace('-', '')
+        
+        business = {
+            'name': name,
+            'address': f"{random.randint(1, 200)} Rue {random.choice(['Mohammed V', 'Hassan II', 'de la Liberté', 'Al Moukaouama'])}, {location.split(',')[0]}",
+            'phone': f"+212 {random.randint(500, 699)}-{random.randint(100000, 999999)}" if has_phone else "",
+            'website': f"www.{clean_name}.ma" if has_website else "",
+            'email': f"contact@{clean_name}.ma" if has_email else "",
+            'emails': [f"contact@{clean_name}.ma"] if has_email else [],
+            'category': category,
+            'rating': round(random.uniform(3.5, 4.8), 1),
+            'review_count': random.randint(15, 250),
+            'lead_score': random.randint(60, 95),
+            'source': 'sample_data_generator',
+            'search_timestamp': datetime.now().isoformat(),
+            'location': location,
+            'verified': False
+        }
+        
+        businesses.append(business)
+    
+    return businesses
+
+def save_sample_data_to_results(businesses: List[Dict[str, Any]], location: str, category: str):
+    """Save sample data to the results folder structure."""
+    
+    # Create results directory structure
+    results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
+    location_dir = os.path.join(results_dir, 'sample_data', location.replace(', ', '_').replace(' ', '_').lower())
+    
+    os.makedirs(location_dir, exist_ok=True)
+    
+    # Save data
+    filename = f"{category}_sample_data.json"
+    filepath = os.path.join(location_dir, filename)
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(businesses, f, indent=2, ensure_ascii=False)
+    
+    print(f"✅ Sample data saved to: {filepath}")
+    print(f"📊 Generated {len(businesses)} sample {category} businesses for {location}")
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Collect real business data from Morocco')
+    parser.add_argument('--generate-samples', action='store_true', 
+                       help='Generate sample data for testing')
+    parser.add_argument('--location', default='Marrakesh, Morocco',
+                       help='Location to generate data for')
+    parser.add_argument('--category', default='restaurants',
+                       help='Business category')
+    parser.add_argument('--count', type=int, default=25,
+                       help='Number of sample businesses to generate')
+    
+    args = parser.parse_args()
+    
     # Create results directory
-    import os
     os.makedirs('results', exist_ok=True)
     
-    # Collect real data
-    collect_real_data()
+    if args.generate_samples:
+        print("🎯 Generating sample business data...")
+        print("="*50)
+        businesses = generate_sample_data(args.location, args.category, args.count)
+        save_sample_data_to_results(businesses, args.location, args.category)
+        print("\n💡 You can now test the system with:")
+        print(f"   python main.py search --location '{args.location}' --categories {args.category}")
+        print("   python quick_search/quick_all_cities_search.py")
+    else:
+        # Collect real data
+        collect_real_data()

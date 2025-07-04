@@ -129,18 +129,23 @@ config.json
 secrets.json
 
 # Data and Results
-results/*.json
-results/*.csv
-results/*.html
-results/*.pdf
-results/cities/*/searches/*.json
-results/cities/*/analytics/*.json
-results/cities/*/reports/*.html
-results/cities/*/exports/*.csv
+results/*
+
+# Test results and Google Maps output  
+result*
+*_search.json
+*_results.json
+gmaps_*.json
+combined_*.json
+standard_*.json
+
+# Keep sample files and documentation
 !results/sample_leads.json
-!results/leads_report.html
+!results/leads_report.html  
 !results/leads.csv
 !results/cities/*/README.md
+!results/README.md
+
 
 # Logs
 logs/

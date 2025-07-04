@@ -35,8 +35,8 @@ sys.path.append(str(Path(__file__).parent / 'src'))
 console = Console()
 
 try:
-    from src.services.lead_service import BusinessLeadService
-    from src.core.config import config, SEARCH_CONFIG
+    from src.services.lead_service import search_business_leads, analyze_lead_results, get_top_leads
+    from src.config.config_manager import get_search_config, get_full_config
     from src.data.real_sources import BusinessData
     # Always import these utility functions
     from src.business_search import search_businesses_all_sources, calculate_lead_score
@@ -103,8 +103,7 @@ async def run_interactive_mode():
     
     # Run search
     if SERVICES_AVAILABLE:
-        lead_service = BusinessLeadService()
-        result = await lead_service.search_leads(category, city, max_results)
+        result = await search_business_leads(category, city, max_results)
         display_results(result)
     else:
         # Fallback to old method
@@ -123,8 +122,7 @@ async def run_quick_search(category: str, location: str = "Marrakech", max_resul
     console.print(f"[green]🔍 Searching for {category} in {location}...[/green]")
     
     if SERVICES_AVAILABLE:
-        lead_service = BusinessLeadService()
-        result = await lead_service.search_leads(category, location, max_results)
+        result = await search_business_leads(category, location, max_results)
         display_results(result)
     else:
         await run_basic_search(category, location, max_results)
@@ -146,8 +144,7 @@ async def run_demo():
         console.print(f"[bold]--- Demo: {category.title()} in {city} ---[/bold]")
         
         if SERVICES_AVAILABLE:
-            lead_service = BusinessLeadService()
-            result = await lead_service.search_leads(category, city, max_results)
+            result = await search_business_leads(category, city, max_results)
             display_results(result, demo_mode=True)
         else:
             await run_basic_search(category, city, max_results)
@@ -160,17 +157,24 @@ async def run_demo():
 
 def display_results(result, demo_mode: bool = False):
     """Display search results in a formatted table."""
-    if not result or not result.businesses:
+    if not result or not result.get('businesses'):
         console.print("[yellow]No businesses found. Try a different search term or location.[/yellow]")
         return
     
+    businesses = result['businesses']
+    total_found = result.get('total_found', len(businesses))
+    high_priority_count = result.get('high_priority_count', 0)
+    no_website_count = result.get('no_website_count', 0)
+    avg_rating = result.get('avg_rating', 0.0)
+    sources_used = result.get('sources_used', [])
+    
     # Summary panel
     summary = Panel(
-        f"[bold]Found {result.total_found} businesses[/bold]\n"
-        f"High priority leads: [red]{result.high_priority_count}[/red]\n"
-        f"Without websites: [yellow]{result.no_website_count}[/yellow]\n"
-        f"Average rating: [green]{result.avg_rating:.1f}⭐[/green]\n"
-        f"Sources: {', '.join(result.sources_used)}",
+        f"[bold]Found {total_found} businesses[/bold]\n"
+        f"High priority leads: [red]{high_priority_count}[/red]\n"
+        f"Without websites: [yellow]{no_website_count}[/yellow]\n"
+        f"Average rating: [green]{avg_rating:.1f}⭐[/green]\n"
+        f"Sources: {', '.join(sources_used)}",
         title="📊 Search Summary",
         border_style="green"
     )
@@ -187,16 +191,29 @@ def display_results(result, demo_mode: bool = False):
     table.add_column("Priority", justify="center")
     
     # Sort by lead score
-    sorted_businesses = sorted(result.businesses, key=lambda x: getattr(x, 'lead_score', 0), reverse=True)
+    sorted_businesses = sorted(businesses, key=lambda x: x.get('lead_score', 0), reverse=True)
     
     # Show top results (limit for demo mode)
     display_count = min(10, len(sorted_businesses)) if demo_mode else len(sorted_businesses)
     
     for business in sorted_businesses[:display_count]:
-        rating = f"{business.rating:.1f}⭐" if business.rating > 0 else "No rating"
-        website = "✅" if business.website else "❌"
+        # Handle both dict and object formats
+        if isinstance(business, dict):
+            name = business.get('name', 'N/A')
+            category = business.get('category', 'N/A')
+            rating_val = business.get('rating', 0)
+            website = business.get('website', '')
+            lead_score = business.get('lead_score', 0)
+        else:
+            name = getattr(business, 'name', 'N/A')
+            category = getattr(business, 'category', 'N/A')
+            rating_val = getattr(business, 'rating', 0)
+            website = getattr(business, 'website', '')
+            lead_score = getattr(business, 'lead_score', 0)
+            
+        rating = f"{rating_val:.1f}⭐" if rating_val > 0 else "No rating"
+        website_status = "✅" if website else "❌"
         
-        lead_score = getattr(business, 'lead_score', 0)
         if lead_score >= 80:
             priority = "[bold red]HIGH[/bold red]"
         elif lead_score >= 60:
@@ -205,10 +222,10 @@ def display_results(result, demo_mode: bool = False):
             priority = "[dim]LOW[/dim]"
         
         table.add_row(
-            business.name[:30] + "..." if len(business.name) > 30 else business.name,
-            business.category[:15],
+            name[:30] + "..." if len(name) > 30 else name,
+            category[:15],
             rating,
-            website,
+            website_status,
             f"{lead_score}/100",
             priority
         )
@@ -400,12 +417,11 @@ def quick_search(category: str, location: str, max_results: int = 10):
         try:
             if SERVICES_AVAILABLE:
                 # Use the new service
-                lead_service = BusinessLeadService()
-                result = asyncio.run(lead_service.search_leads(category, location, max_results))
+                result = asyncio.run(search_business_leads(category, location, max_results))
                 
-                # Extract businesses from LeadAnalysisResult
-                if hasattr(result, 'businesses'):
-                    businesses = result.businesses
+                # Extract businesses from result
+                if isinstance(result, dict) and 'businesses' in result:
+                    businesses = result['businesses']
                 else:
                     businesses = result
             else:
