@@ -47,8 +47,8 @@ def test_french_patterns():
             "name": "Café des Épices",
             "category": "cafe",
             "address": "75 Rahba Lakdima, Marrakech",
-            "known_domain": "cafedesepices.com",
-            "pattern": "Removes accents, joins words"
+            "known_domain": "cafedesepices.ma",
+            "pattern": "Removes accents, joins words, uses .ma TLD"
         },
         {
             "name": "Restaurant Al Fassia",

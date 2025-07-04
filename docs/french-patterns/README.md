@@ -22,7 +22,7 @@ French articles are typically removed from domain names:
 ### 3. Accent and Special Character Handling
 French accents and special characters are simplified:
 
-- **Café** → `cafe` (é becomes e)
+- **Café des Épices** → `cafedesepices.ma` (removes accents, uses .ma TLD)
 - **Hôtel** → `hotel` (ô becomes o)
 - **Château** → `chateau` (â becomes a)
 - **Français** → `francais` (ç becomes c)
@@ -64,6 +64,7 @@ Many Moroccan businesses include location in their domains:
 | La Mamounia | mamounia.com | Article removal |
 | Riad Yasmine | riad-yasmine.com | Category + hyphen |
 | Café Argana | restaurantargana.com | Category substitution |
+| Café des Épices | cafedesepices.ma | Accent removal + .ma TLD |
 
 ### Pattern Analysis
 - **60%** use simple name without articles

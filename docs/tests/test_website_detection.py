@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Website Detection Test
-Demonstrates the enhanced website detection with AI-powered domain generation.
+Test Enhanced Website Detection
+Demonstrates the AI-powered domain generation and enhanced website checking.
 """
 
 import sys
@@ -21,46 +21,47 @@ def test_website_detection():
     console.print("=" * 60)
     
     # Test businesses with different scenarios
+    # Note: Morocco is French-speaking, so businesses often use French patterns
     test_businesses = [
         {
             "name": "La Mamounia",
             "category": "hotel",
             "address": "Avenue Bab Jdid, Marrakech",
-            "phone": "+212524388600",
-            "expected": "mamounia.com"
+            "phone": "+212524388600"
+        },
+        {
+            "name": "Café Argana", 
+            "category": "cafe",
+            "address": "Jemaa el-Fnaa, Marrakech",
+            "phone": "+212524000000",
+            "expected_domain": "restaurantargana.com"  # Real domain: they added "restaurant"
         },
         {
             "name": "Riad Yasmine",
-            "category": "hotel",
-            "address": "Derb Sidi Bouloukat, Marrakech", 
-            "phone": "+212524387654",
-            "expected": "riad-yasmine.com"
+            "category": "hotel", 
+            "address": "Derb Sidi Bouloukat, Marrakech",
+            "phone": "+212524387654"
         },
         {
             "name": "Le Jardin",
             "category": "restaurant",
-            "address": "32 Souk el Jeld, Marrakech",
-            "phone": "+212524000001",
-            "expected": "lejardin-marrakech.com"
-        },
-        {
-            "name": "Café des Épices",
-            "category": "cafe",
-            "address": "75 Rahba Lakdima, Marrakech",
-            "phone": "+212524000002",
-            "expected": "cafedesepices.ma"
+            "address": "32 Souk el Jeld, Marrakech", 
+            "phone": "+212524000001"
         }
     ]
     
     table = Table(title="Website Detection Results")
     table.add_column("Business", style="cyan")
     table.add_column("Category", justify="center")
-    table.add_column("Expected", justify="center", style="dim")
     table.add_column("Website Found", justify="center")
     table.add_column("Status", justify="center")
     
     for business in test_businesses:
         console.print(f"\n[yellow]🔍 Checking: {business['name']}[/yellow]")
+        
+        # Show expected domain if available
+        if business.get('expected_domain'):
+            console.print(f"  Expected domain: {business['expected_domain']}")
         
         result = enhanced_website_detection(business['name'], business['category'])
         
@@ -74,7 +75,6 @@ def test_website_detection():
         table.add_row(
             business['name'],
             business['category'],
-            business.get('expected', 'N/A'),
             website_status,
             status
         )
@@ -86,14 +86,24 @@ def test_website_detection():
                 console.print(f"  Found domains: {result['domains_found']}")
             else:
                 console.print(f"  Sample domains tried: {result['domains_checked'][:3]}")
+        
+        # Check if we found the expected domain
+        if business.get('expected_domain') and result['website_found']:
+            if business['expected_domain'] in result['website_url']:
+                console.print(f"  ✅ Found expected domain!")
+            else:
+                console.print(f"  ⚠️  Found different domain than expected")
     
     console.print(table)
     
     console.print("\n[bold green]📈 Enhanced Detection Features:[/bold green]")
     console.print("• AI-powered domain generation using business context")
-    console.print("• Multiple domain pattern strategies")
-    console.print("• Real-time domain validation and accessibility checks")
-    console.print("• Intelligent fallback patterns")
+    console.print("• French language patterns (Morocco is French-speaking)")
+    console.print("• Hyphenated and concatenated name patterns")
+    console.print("• Category and location-based domain patterns")
+    console.print("• Common French business prefixes: restaurant, cafe, hotel, riad, le, la")
+    console.print("• Fallback patterns for common Moroccan business domains")
+    console.print("• Example: 'Café Argana' → 'restaurantargana.com' (adds 'restaurant')")
 
 if __name__ == "__main__":
     test_website_detection()

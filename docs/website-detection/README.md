@@ -47,7 +47,7 @@ If primary patterns fail, the system tries:
 
 ### Supported TLDs
 - `.com` (primary)
-- `.ma` (Morocco)
+- `.ma` (Morocco - very important!)
 - `.co.ma` (Morocco commercial)
 - `.org`
 - `.net`

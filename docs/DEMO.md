@@ -18,6 +18,13 @@ Since Morocco is French-speaking, the system includes comprehensive French langu
 - **Location**: Jemaa el-Fnaa, Marrakech
 - **Website**: http://www.restaurantargana.com
 
+### Example: Café des Épices
+- **Business Name**: Café des Épices
+- **Expected Domain**: `cafedesepices.ma`
+- **Pattern**: Removes accents (é), joins words, uses Morocco .ma TLD
+- **Location**: 75 Rahba Lakdima, Marrakech
+- **Website**: https://cafedesepices.ma/fr/
+
 ## Feature Demonstrations
 
 ### 1. Lead Scoring System

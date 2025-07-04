@@ -1233,6 +1233,7 @@ def generate_possible_domains(business_name: str, category: str = "") -> List[st
 def extract_words_for_domain(name: str) -> List[str]:
     """
     Extract clean words from business name for domain generation.
+    Enhanced for French business names in Morocco.
     
     Args:
         name: Business name
@@ -1245,19 +1246,30 @@ def extract_words_for_domain(name: str) -> List[str]:
     
     import re
     
-    # Convert to lowercase
+    # Convert to lowercase and handle French accents
     clean = name.lower()
     
-    # Remove common business prefixes/words but keep important words
+    # Remove French accents
+    accent_map = {
+        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+        'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a',
+        'ò': 'o', 'ó': 'o', 'ô': 'o', 'ö': 'o',
+        'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+        'ç': 'c', 'ñ': 'n'
+    }
+    
+    for accent, replacement in accent_map.items():
+        clean = clean.replace(accent, replacement)
+    
+    # Only remove definite articles, not all words
     remove_words = [
-        'restaurant', 'hotel', 'cafe', 'café', 'spa', 'shop', 'boutique',
-        'le', 'la', 'les', 'du', 'de', 'des', 'et', 'and', 'the', '&', 'chez'
+        'le', 'la', 'les', 'du', 'de', 'et', 'and', 'the', '&', 'chez'
     ]
     
     # Extract words (letters only)
     words = re.findall(r'[a-zA-Z]+', clean)
     
-    # Filter out common words but keep meaningful ones
+    # Filter out only definite articles, keep business type words
     filtered_words = []
     for word in words:
         word_clean = re.sub(r'[^a-z]', '', word.lower())
