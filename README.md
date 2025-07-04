@@ -1,10 +1,26 @@
 # Business Lead Finder
 
-A powerful Python CLI tool to find local businesses without websites and identify potential clients for web development services. Perfect for freelancers and agencies targeting the Morocco market.
+A powerful command-line tool to find local businesses without websites and identify potential clients for web development services. Built specifically for the Morocco market with a focus on Marrakesh.
 
-## 🚀 Quick Start
+## 🎯 Overview
 
-### Installation
+Business Lead Finder helps web developers and digital agencies discover high-quality business prospects by:
+
+- **Finding businesses without websites** - Your biggest opportunities
+- **Scoring leads automatically** - Prioritize your outreach efforts  
+- **Generating professional reports** - Present findings to clients or team
+- **Exporting contact data** - Ready for CRM import or calling campaigns
+- **Supporting multiple data sources** - Free APIs prioritized, no credit card required
+
+## ⚡ Quick Start
+
+### 1. Prerequisites
+
+- Python 3.8+ installed
+- Internet connection
+- No credit card required for basic functionality
+
+### 2. Installation
 
 ```bash
 # Clone the repository
@@ -14,430 +30,426 @@ cd business-lead-finder
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment configuration
+# Create environment configuration
 cp .env.example .env
-
-# Edit .env with your API keys (optional - works with free APIs)
-nano .env
 ```
 
-### Basic Usage
+### 3. First Run
 
 ```bash
-# Search for restaurants and hotels in Marrakesh
+# Interactive mode (recommended for beginners)
+python main.py interactive
+
+# Or direct search
 python main.py search --location "Marrakesh, Morocco" --categories restaurants hotels
+```
 
-# Check if a specific business has a website
-python main.py check --business-name "Restaurant Atlas" --phone "+212524443322"
+## 🖥️ CLI Commands Guide
 
-# Generate a comprehensive report
-python main.py report --input results/search_results.json --output results/report.html
+### Interactive Mode
 
-# Start interactive mode
+**Best for beginners** - Guided experience with prompts
+
+```bash
 python main.py interactive
 ```
 
-## Project Overview
+**What it does:**
+- Prompts for location (default: Marrakesh, Morocco)
+- Shows available categories (restaurants, hotels, cafes, etc.)  
+- Asks for number of results
+- Guides you through the entire process
 
-A Python-based tool to find local businesses without websites and identify potential clients for web development services.
+### Search Command
+
+**Find businesses by location and category**
+
+```bash
+python main.py search --location "Marrakesh, Morocco" --categories restaurants hotels --max-results 50 --output results/leads.json
+```
+
+**Parameters:**
+- `--location, -l` (required): Target location
+- `--categories, -c` (required): Business types to search (space-separated)
+- `--max-results, -m`: Maximum results per category (default: 50)
+- `--output, -o`: Save results to file
+- `--format, -f`: Output format (json, csv)
+
+**Examples:**
+```bash
+# Search restaurants only
+python main.py search -l "Marrakesh, Morocco" -c restaurants
+
+# Search multiple categories
+python main.py search -l "Casablanca, Morocco" -c restaurants hotels spas cafes
+
+# Save results to specific file
+python main.py search -l "Marrakesh, Morocco" -c hotels -o hotel_leads.json
+
+# Limit results and save as CSV
+python main.py search -l "Marrakesh, Morocco" -c restaurants -m 20 -f csv -o restaurants.csv
+```
+
+### Check Command
+
+**Verify if a specific business has a website**
+
+```bash
+python main.py check --business-name "Restaurant Atlas" --phone "+212524443322"
+```
+
+**Parameters:**
+- `--business-name, -n` (required): Name of business to check
+- `--phone, -p`: Business phone number (helps verification)
+- `--address, -a`: Business address (improves accuracy)
+
+**Examples:**
+```bash
+# Basic website check
+python main.py check -n "Riad Zitoun"
+
+# Enhanced check with contact info
+python main.py check -n "Restaurant Atlas" -p "+212524443322" -a "Medina, Marrakesh"
+```
+
+### Report Command
+
+**Generate professional HTML reports**
+
+```bash
+python main.py report --input results/leads.json --output reports/business_report.html
+```
+
+**Parameters:**
+- `--input, -i` (required): Input data file (JSON format)
+- `--output, -o`: Output report file path
+- `--format, -f`: Report format (html, pdf, json)
+- `--template`: Custom template to use
+
+**Examples:**
+```bash
+# Generate HTML report (opens in browser)
+python main.py report -i leads.json -o report.html
+
+# Generate PDF report
+python main.py report -i leads.json -o report.pdf -f pdf
+
+# Auto-generate output name
+python main.py report -i results/hotel_leads.json
+```
+
+### Export Command
+
+**Export data to various formats**
+
+```bash
+python main.py export --input results/leads.json --output exports/leads.csv --format csv
+```
+
+**Parameters:**
+- `--input, -i` (required): Input data file
+- `--output, -o` (required): Output file path
+- `--format, -f` (required): Export format (csv, json, xlsx, vcf)
+- `--filter`: Filter criteria (e.g., "no_website=true")
+
+**Examples:**
+```bash
+# Export to Excel-compatible CSV
+python main.py export -i leads.json -o leads.csv -f csv
+
+# Export only businesses without websites
+python main.py export -i leads.json -o no_website_leads.csv -f csv --filter "no_website=true"
+
+# Export contact cards (VCF format)
+python main.py export -i leads.json -o contacts.vcf -f vcf
+
+# Export to Excel
+python main.py export -i leads.json -o data.xlsx -f xlsx
+```
+
+### Analyze Command
+
+**Analyze existing lead data**
+
+```bash
+python main.py analyze --input results/leads.json
+```
+
+**Parameters:**
+- `--input, -i` (required): Input data file to analyze
+- `--output, -o`: Save analysis to file
+- `--metrics`: Specific metrics to analyze
+
+**Examples:**
+```bash
+# Basic analysis
+python main.py analyze -i leads.json
+
+# Save analysis results
+python main.py analyze -i leads.json -o analysis_report.json
+
+# Analyze specific metrics
+python main.py analyze -i leads.json --metrics conversion_potential market_saturation
+```
+
+### Help Commands
+
+**Get help for any command**
+
+```bash
+# General help
+python main.py --help
+
+# Help for specific command
+python main.py search --help
+python main.py report --help
+python main.py export --help
+```
+
+## 📊 Understanding Your Results
+
+### Lead Scoring System
+
+Each business gets a score from 0-100 based on:
+
+- **Rating (30 points)**: Higher rated businesses are more likely to invest
+- **Reviews (20 points)**: More reviews = established business
+- **Website Absence (25 points)**: No website = your opportunity
+- **Category (15 points)**: Some business types have higher potential
+- **Social Media (10 points)**: Shows tech-savviness
+
+**Score Interpretation:**
+- **90-100**: 🔥 Excellent leads - Top priority
+- **70-89**: ⭐ Good leads - Strong potential
+- **50-69**: 📈 Medium leads - Worth considering  
+- **Below 50**: 📋 Low priority - Contact when capacity allows
+
+### File Outputs
+
+**JSON Files:**
+- Raw data for further processing
+- Used as input for other commands
+- Contains all business information
+
+**HTML Reports:**
+- Professional presentation format
+- Open in any web browser
+- Perfect for client presentations
+
+**CSV Files:**
+- Excel-compatible format
+- Easy to sort and filter
+- Import into CRM systems
+
+## 🎯 Practical Workflow Examples
+
+### Scenario 1: New Market Research
+
+```bash
+# 1. Search for businesses in new city
+python main.py search -l "Casablanca, Morocco" -c restaurants hotels -o casablanca_leads.json
+
+# 2. Generate professional report
+python main.py report -i casablanca_leads.json -o casablanca_market_report.html
+
+# 3. Export high-priority leads to CSV
+python main.py export -i casablanca_leads.json -o priority_leads.csv -f csv --filter "lead_score>=70"
+
+# 4. Analyze market opportunity
+python main.py analyze -i casablanca_leads.json -o market_analysis.json
+```
+
+### Scenario 2: Daily Lead Generation
+
+```bash
+# Morning routine - find today's leads
+python main.py search -l "Marrakesh, Morocco" -c restaurants cafes -m 30 -o daily_leads.json
+
+# Check a specific business someone mentioned
+python main.py check -n "Café Central" -p "+212524567890"
+
+# Generate daily report
+python main.py report -i daily_leads.json -o daily_report_$(date +%Y%m%d).html
+```
+
+### Scenario 3: Client Presentation Prep
+
+```bash
+# Comprehensive search for presentation
+python main.py search -l "Marrakesh, Morocco" -c restaurants hotels spas -m 100 -o presentation_data.json
+
+# Generate beautiful HTML report
+python main.py report -i presentation_data.json -o client_presentation.html
+
+# Export contact sheet for follow-up
+python main.py export -i presentation_data.json -o contact_list.csv -f csv
+```
+
+## 🔧 Advanced Configuration
+
+### Environment Variables
+
+Create a `.env` file with your configuration:
+
+```env
+# Default search location
+DEFAULT_LOCATION=Marrakesh, Morocco
+
+# Search limits
+MAX_RESULTS_PER_SEARCH=50
+DELAY_BETWEEN_REQUESTS=1
+
+# Free API keys (optional - improves results)
+SERPAPI_KEY=your_free_serpapi_key
+FOURSQUARE_CLIENT_ID=your_free_foursquare_id
+FOURSQUARE_CLIENT_SECRET=your_free_foursquare_secret
+
+# Premium APIs (optional)
+GOOGLE_PLACES_API_KEY=your_google_places_key
+YELP_API_KEY=your_yelp_key
+
+# Output preferences
+EXPORT_FORMAT=csv,json
+REPORT_FORMAT=html
+```
+
+### Command Aliases
+
+Create shortcuts for frequent commands:
+
+```bash
+# Add to your shell profile (.bashrc, .zshrc, etc.)
+alias bf-search='python /path/to/business-lead-finder/main.py search'
+alias bf-report='python /path/to/business-lead-finder/main.py report'
+alias bf-check='python /path/to/business-lead-finder/main.py check'
+
+# Usage:
+bf-search -l "Marrakesh, Morocco" -c restaurants
+bf-report -i leads.json -o report.html
+```
 
 ## 📁 Project Structure
 
 ```
 business-lead-finder/
+├── main.py                 # Main CLI entry point
+├── requirements.txt        # Python dependencies
+├── .env.example           # Configuration template
+├── .gitignore            # Git ignore rules
+├── README.md             # This file
+├── CLI_GUIDE.md          # Detailed CLI documentation
 ├── .vscode/
-│   ├── settings.json
-│   ├── launch.json
-│   └── rules.md
-├── src/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── business_finder.py
-│   │   ├── website_checker.py
-│   │   ├── data_processor.py
-│   │   └── report_generator.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── file_manager.py
-│   │   ├── validators.py
-│   │   └── formatters.py
-│   ├── apis/
-│   │   ├── __init__.py
-│   │   ├── google_places.py
-│   │   ├── web_scraper.py
-│   │   └── free_apis.py
+│   └── coding_rules.md   # Development guidelines
+├── src/                  # Source code
+│   ├── cli_interface.py  # CLI command handling
+│   ├── business_search.py # Business search logic
+│   ├── website_checker.py # Website detection
+│   ├── data_processor.py # Data processing & export
+│   ├── report_generator.py # Report generation
+│   ├── utils.py         # Utility functions
+│   ├── simple_cli.py    # Fallback CLI (no dependencies)
 │   └── config/
-│       ├── __init__.py
-│       ├── settings.py
-│       └── constants.py
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   ├── exports/
-│   └── templates/
-├── results/
-│   ├── leads/
-│   ├── reports/
-│   └── analytics/
-├── tests/
-│   ├── __init__.py
-│   ├── test_business_finder.py
-│   ├── test_website_checker.py
-│   └── test_data_processor.py
-├── docs/
-│   ├── README.md
-│   ├── API_USAGE.md
-│   ├── FEATURES.md
-│   └── DEPLOYMENT.md
-├── scripts/
-│   ├── setup.py
-│   ├── run_search.py
-│   └── generate_report.py
-├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
+│       └── settings.py  # Configuration management
+├── results/             # Search results storage
+│   ├── sample_leads.json
+│   ├── leads_report.html
+│   └── leads.csv
+└── logs/               # Application logs
+    └── business_finder.log
 ```
 
-## 🎯 Key Features
-
-### Core Features
-
-- **Multi-Source Business Search**: Google Places, Yelp, local directories
-- **Website Detection**: Advanced algorithms to check for existing websites
-- **Contact Information Extraction**: Phone, email, social media
-- **Lead Scoring**: Prioritize best prospects
-- **Automated Reporting**: Generate professional reports
-- **Export Options**: CSV, JSON, PDF formats
-
-### Advanced Features
-
-- **AI-Powered Classification**: Categorize businesses by potential
-- **Competitor Analysis**: Check what competitors are doing
-- **Social Media Presence Check**: Instagram, Facebook, LinkedIn
-- **Review Analysis**: Analyze customer reviews for insights
-- **Email Template Generation**: Personalized outreach templates
-- **CRM Integration**: Export to popular CRM systems
-- **Analytics Dashboard**: Track success rates and trends
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Python 3.8+
-- Internet connection
-- Basic understanding of APIs (optional)
-
-### Installation
-
-```bash
-git clone https://github.com/yourusername/business-lead-finder.git
-cd business-lead-finder
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your configuration
-python src/main.py
-```
+## 🆓 Free Implementation
 
-## 🔧 Configuration
-
-### Environment Variables
+This tool works completely **free without any credit card** using:
 
-```env
-# Free APIs (No credit card required)
-SERPAPI_KEY=your_free_key_here
-OPENSTREETMAP_ENABLED=true
-FOURSQUARE_CLIENT_ID=your_free_client_id
-FOURSQUARE_CLIENT_SECRET=your_free_client_secret
+### Primary Data Sources (100% Free)
 
-# Optional Premium APIs
-GOOGLE_PLACES_API_KEY=your_key_here
-YELP_API_KEY=your_key_here
+1. **OpenStreetMap Nominatim**
+   - Unlimited geocoding and business search
+   - Global coverage including Morocco
+   - No API key required
 
-# Search Configuration
-DEFAULT_LOCATION=Marrakesh, Morocco
-MAX_RESULTS_PER_SEARCH=50
-DELAY_BETWEEN_REQUESTS=1
+2. **Public Business Directories**
+   - Web scraping of public listings
+   - Contact information extraction
+   - Social media profile detection
 
-# Output Configuration
-EXPORT_FORMAT=csv,json
-REPORT_FORMAT=html,pdf
-```
+3. **Search Engine Results**
+   - Public business information
+   - Website detection algorithms
+   - Review aggregation
 
-## 📊 Usage Examples
-
-### Basic Search
+### Optional Premium Upgrades
 
-```python
-from src.core.business_finder import BusinessFinder
+1. **SerpAPI** (100 searches/month free)
+   - Enhanced search results
+   - More accurate business data
 
-finder = BusinessFinder("Marrakesh, Morocco")
-results = finder.search_businesses(["restaurants", "hotels", "shops"])
-finder.generate_report()
-```
+2. **Foursquare Places** (1000 requests/day free)
+   - Rich business information
+   - Better categorization
 
-### Advanced Search with Filters
+3. **Google Places API** (Premium)
+   - Highest quality data
+   - Real-time information
 
-```python
-finder = BusinessFinder("Marrakesh, Morocco")
-results = finder.search_businesses(
-    categories=["restaurants", "hotels"],
-    filters={
-        "rating": ">4.0",
-        "review_count": ">10",
-        "price_range": "$-$$"
-    }
-)
-```
+## 🎯 Target Market: Morocco
 
-## 🎨 Output Examples
+### Optimized for Moroccan Businesses
 
-### Lead Report Structure
+- **Primary Cities**: Marrakesh, Casablanca, Rabat, Fez
+- **Key Sectors**: Tourism, Hospitality, Food & Beverage
+- **Language Support**: French, Arabic, English business names
+- **Cultural Considerations**: Riad vs Hotel classification
 
-```
-Business Name: Restaurant Atlas
-Category: Restaurant
-Address: Medina, Marrakesh
-Phone: +212 5 24 44 33 22
-Rating: 4.2/5 (127 reviews)
-Website: ❌ NOT FOUND
-Social Media: ✅ Facebook, ❌ Instagram
-Lead Score: 8.5/10
-Opportunity: High - Popular restaurant with no website
-```
+### High-Opportunity Categories
 
-### Email Template Generation
+1. **Restaurants & Cafes** - Low website adoption, high potential
+2. **Hotels & Riads** - Direct booking opportunities
+3. **Spas & Wellness** - Growing sector, tech adoption
+4. **Tour Operators** - High-value, seasonal business
+5. **Retail Shops** - E-commerce opportunities
 
-```
-Subject: Professional Website for Restaurant Atlas
+## ⚠️ Important Notes
 
-Hello,
+### Rate Limiting
 
-I noticed that Restaurant Atlas has excellent reviews (4.2/5) but no website.
-As a restaurant with 127+ reviews, you're missing opportunities to:
-- Showcase your menu online
-- Accept online reservations
-- Attract tourists searching online
+The tool includes automatic rate limiting to respect API guidelines:
+- 1-second delay between requests by default
+- Configurable via environment variables
+- Prevents account suspension
 
-I specialize in creating professional websites for restaurants in Marrakesh.
-Would you be interested in a quick call to discuss how a website could help grow your business?
+### Data Accuracy
 
-Best regards,
-[Your Name]
-```
+- Business information accuracy depends on source quality
+- Website detection is comprehensive but not 100% perfect
+- Phone numbers and addresses should be verified before outreach
+- Regular data refresh recommended for active campaigns
 
-## 🔍 Free APIs Integration
+### Legal Compliance
 
-### No Credit Card Required
+- All data sources are publicly available
+- Respects robots.txt and API terms of service
+- No unauthorized scraping or data collection
+- Users responsible for GDPR/privacy compliance in outreach
 
-1. **SerpAPI Free Tier**: 100 searches/month
-2. **OpenStreetMap Nominatim**: Unlimited geocoding
-3. **Foursquare Places**: 1000 requests/day
-4. **Social Media APIs**: Basic business info
-5. **Web Scraping**: Public business directories
+## 🚀 Getting Started Checklist
 
-### Premium APIs (Optional)
+- [ ] Python 3.8+ installed
+- [ ] Repository cloned and dependencies installed
+- [ ] Test run with `python main.py interactive`
+- [ ] First search completed for Marrakesh restaurants
+- [ ] HTML report generated and reviewed
+- [ ] Contact data exported to CSV
+- [ ] Ready for business outreach!
 
-- Google Places API: More accurate results
-- Yelp Fusion API: Better business data
-- EmailFinder APIs: Contact discovery
+## 📞 Support & Community
 
-## 📈 Advanced Analytics
+- **Issues**: GitHub Issues for bug reports
+- **Features**: GitHub Discussions for feature requests  
+- **Documentation**: Check CLI_GUIDE.md for detailed examples
+- **Code**: See .vscode/coding_rules.md for contribution guidelines
 
-### Lead Scoring Algorithm
+---
 
-```python
-def calculate_lead_score(business):
-    score = 0
-
-    # High rating = more likely to invest
-    if business.rating >= 4.5:
-        score += 3
-    elif business.rating >= 4.0:
-        score += 2
-
-    # Many reviews = established business
-    if business.review_count >= 100:
-        score += 2
-    elif business.review_count >= 50:
-        score += 1
-
-    # No website = opportunity
-    if not business.website:
-        score += 4
-
-    # Active on social = tech-savvy
-    if business.social_media_count >= 2:
-        score += 1
-
-    return min(score, 10)
-```
-
-### Success Metrics
-
-- **Conversion Rate**: Leads to actual clients
-- **Response Rate**: Email/call responses
-- **Quality Score**: Lead accuracy
-- **ROI Tracking**: Revenue per lead
-
-## 🎯 Target Business Categories
-
-### High-Priority Categories
-
-- Restaurants & Cafes
-- Hotels & Riads
-- Tour Operators
-- Spas & Wellness
-- Retail Shops
-- Professional Services
-
-### Scoring Criteria
-
-- **Rating**: 4.0+ stars preferred
-- **Reviews**: 20+ reviews
-- **Age**: Established businesses
-- **Location**: Tourist/business areas
-- **Competition**: Low website saturation
-
-## 🔄 Automation Features
-
-### Scheduled Searches
-
-```python
-# Daily search for new businesses
-scheduler = BusinessScheduler()
-scheduler.add_daily_search(
-    categories=["restaurants", "hotels"],
-    time="09:00",
-    location="Marrakesh, Morocco"
-)
-```
-
-### Alert System
-
-- New businesses without websites
-- Competitor website launches
-- Review score changes
-- Contact information updates
-
-## 📊 Export & Integration
-
-### Export Formats
-
-- **CSV**: For spreadsheet analysis
-- **JSON**: For API integration
-- **PDF**: For client presentations
-- **VCF**: For contact imports
-
-### CRM Integration
-
-- HubSpot
-- Salesforce
-- Pipedrive
-- Custom CRM APIs
-
-## 🛠️ Development Tools
-
-### Code Quality
-
-- **Linting**: flake8, black
-- **Testing**: pytest, coverage
-- **Documentation**: Sphinx
-- **Type Hints**: mypy
-
-### Monitoring
-
-- **Logging**: Structured logging
-- **Metrics**: Success rate tracking
-- **Alerts**: Error notifications
-- **Performance**: Response time tracking
-
-## 🚀 Deployment Options
-
-### Local Development
-
-```bash
-python src/main.py --location "Marrakesh, Morocco" --categories restaurants,hotels
-```
-
-### Cloud Deployment
-
-- **Heroku**: Easy deployment
-- **AWS Lambda**: Serverless functions
-- **Google Cloud**: Scalable processing
-- **DigitalOcean**: Cost-effective VPS
-
-### Scheduling
-
-- **Cron Jobs**: Linux/Mac scheduling
-- **Task Scheduler**: Windows scheduling
-- **Cloud Scheduler**: Google Cloud
-- **GitHub Actions**: CI/CD pipeline
-
-## 📚 Learning Resources
-
-### API Documentation
-
-- Google Places API
-- Yelp Fusion API
-- SerpAPI Documentation
-- OpenStreetMap Nominatim
-
-### Python Libraries
-
-- requests: HTTP requests
-- BeautifulSoup: Web scraping
-- pandas: Data processing
-- matplotlib: Data visualization
-
-## 🎯 Success Stories
-
-### Case Study 1: Restaurant Chain
-
-- **Found**: 15 restaurants without websites
-- **Contacted**: 12 responded
-- **Converted**: 8 became clients
-- **Revenue**: $24,000 in 3 months
-
-### Case Study 2: Hotel Discovery
-
-- **Found**: 25 riads without websites
-- **Targeted**: High-rating riads only
-- **Success**: 60% response rate
-- **Outcome**: 6 website projects
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **Rate Limiting**: Use delays between requests
-2. **Data Quality**: Validate business information
-3. **API Limits**: Monitor usage carefully
-4. **False Positives**: Verify website detection
-
-### Best Practices
-
-- Start with small searches
-- Verify contact information
-- Use professional email templates
-- Track all interactions
-- Follow up consistently
-
-## 📈 Future Enhancements
-
-### Planned Features
-
-- **Mobile App**: iOS/Android companion
-- **AI Chatbot**: Automated lead qualification
-- **Voice Analysis**: Phone call insights
-- **Predictive Analytics**: Success probability
-- **Multi-Language**: Arabic, French support
-
-### Integration Roadmap
-
-- **WhatsApp Business**: Direct messaging
-- **Instagram API**: Social media analysis
-- **Google Analytics**: Website traffic data
-- **Stripe/PayPal**: Payment processing
+**Start finding your next clients in the Marrakesh market today!** 🇲🇦✨

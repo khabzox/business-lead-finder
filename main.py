@@ -19,31 +19,43 @@ from pathlib import Path
 # Add src directory to Python path
 sys.path.append(str(Path(__file__).parent / 'src'))
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-
 # Import our modules
-from cli_interface import create_cli_parser, handle_cli_command
-from utils import setup_logging, load_config
-from config.settings import DEFAULT_SETTINGS
-
-console = Console()
+try:
+    from cli_interface import create_cli_parser, handle_cli_command
+    from utils import setup_logging, load_config
+    from config.settings import DEFAULT_SETTINGS
+    FULL_CLI_AVAILABLE = True
+except ImportError as e:
+    print(f"Full CLI not available: {e}")
+    print("Using basic CLI interface...")
+    from simple_cli import create_basic_cli_parser, handle_basic_cli_command
+    FULL_CLI_AVAILABLE = False
+    
+    # Create basic versions of missing functions
+    def setup_logging():
+        import logging
+        logging.basicConfig(level=logging.INFO)
+    
+    def load_config(config_file=None):
+        return {
+            'default_location': 'Marrakesh, Morocco',
+            'max_results': 50,
+            'categories': ['restaurants', 'hotels', 'cafes', 'spas']
+        }
 
 def display_banner():
     """Display application banner."""
-    banner_text = Text("""
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                  BUSINESS LEAD FINDER                        ║
-    ║          Find businesses without websites in Morocco         ║
-    ║                                                              ║
-    ║  🎯 Search local businesses  📊 Generate reports            ║
-    ║  🔍 Check website presence   📧 Create email templates      ║
-    ║  💼 Score potential leads    📈 Track ROI                   ║
-    ╚══════════════════════════════════════════════════════════════╝
-    """, style="bold blue")
-    
-    console.print(Panel(banner_text, border_style="bright_blue"))
+    banner = """
+╔══════════════════════════════════════════════════════════════╗
+║                  BUSINESS LEAD FINDER                        ║
+║          Find businesses without websites in Morocco         ║
+║                                                              ║
+║  🎯 Search local businesses  📊 Generate reports            ║
+║  🔍 Check website presence   📧 Create email templates      ║
+║  💼 Score potential leads    📈 Track ROI                   ║
+╚══════════════════════════════════════════════════════════════╝
+    """
+    print(banner)
 
 def main():
     """Main entry point for the application."""
@@ -55,13 +67,16 @@ def main():
         display_banner()
         
         # Create CLI parser
-        parser = create_cli_parser()
+        if FULL_CLI_AVAILABLE:
+            parser = create_cli_parser()
+        else:
+            parser = create_basic_cli_parser()
         
         # Parse arguments
         if len(sys.argv) == 1:
             # No arguments provided, show help
             parser.print_help()
-            console.print("\n[yellow]Tip: Try 'python main.py interactive' for guided mode[/yellow]")
+            print("\nTip: Try 'python main.py interactive' for guided mode")
             return
         
         args = parser.parse_args()
@@ -70,19 +85,22 @@ def main():
         config = load_config(args.config if hasattr(args, 'config') else None)
         
         # Handle the command
-        success = handle_cli_command(args, config)
+        if FULL_CLI_AVAILABLE:
+            success = handle_cli_command(args, config)
+        else:
+            success = handle_basic_cli_command(args, config)
         
         if success:
-            console.print("\n[green]✅ Command completed successfully![/green]")
+            print("\n✅ Command completed successfully!")
         else:
-            console.print("\n[red]❌ Command failed. Check logs for details.[/red]")
+            print("\n❌ Command failed. Check logs for details.")
             sys.exit(1)
             
     except KeyboardInterrupt:
-        console.print("\n[yellow]Operation cancelled by user.[/yellow]")
+        print("\nOperation cancelled by user.")
         sys.exit(0)
     except Exception as e:
-        console.print(f"\n[red]Error: {e}[/red]")
+        print(f"\nError: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
