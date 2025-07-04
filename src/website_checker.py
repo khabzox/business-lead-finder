@@ -514,9 +514,10 @@ def generate_potential_domains(business_name: str) -> List[str]:
         clean_name.split()[0] if ' ' in clean_name else clean_name,  # First word only
     ]
     
-    # Add common business prefixes/suffixes
-    business_prefixes = ['', 'restaurant', 'cafe', 'hotel', 'spa', 'shop']
-    business_suffixes = ['', 'marrakesh', 'morocco', 'marrakech']
+    # Add common business prefixes/suffixes (French and English)
+    # Morocco is French-speaking, so French words are common in domains
+    business_prefixes = ['', 'restaurant', 'cafe', 'hotel', 'spa', 'shop', 'riad', 'dar', 'maison', 'le', 'la']
+    business_suffixes = ['', 'marrakesh', 'morocco', 'marrakech', 'maroc', 'medina', 'gueliz']
     
     for variation in name_variations:
         if len(variation) < 3:  # Skip very short names
@@ -850,7 +851,7 @@ def ai_generate_domain_variations(business_name: str, category: str = '', client
         
         if not client:
             logger.warning("AI client not available, using fallback domain generation")
-            return generate_fallback_domains(business_name, category)
+            return generate_smart_domain_variations(business_name, category)
         
         # Create prompt for AI domain generation
         prompt = f"""
@@ -891,7 +892,7 @@ def ai_generate_domain_variations(business_name: str, category: str = '', client
                     ai_domains.append(domain)
         
         # Add some manual variations as backup
-        fallback_domains = generate_fallback_domains(business_name, category)
+        fallback_domains = generate_smart_domain_variations(business_name, category)
         
         # Combine and deduplicate
         all_domains = list(set(ai_domains + fallback_domains))
@@ -938,47 +939,100 @@ def clean_domain_name(domain: str) -> str:
         logger.error(f"Error cleaning domain '{domain}': {e}")
         return None
 
-def generate_fallback_domains(business_name: str, category: str = '') -> List[str]:
-    """Generate fallback domain variations when AI is not available."""
+def generate_smart_domain_variations(business_name: str, category: str = '') -> List[str]:
+    """
+    Generate smart domain variations including hyphens and realistic patterns.
+    
+    Args:
+        business_name: Business name
+        category: Business category
+    
+    Returns:
+        List of possible domain variations
+    """
     import re
     import unicodedata
     
-    # Normalize and clean business name
+    # Clean and normalize business name
     clean_name = unicodedata.normalize('NFD', business_name.lower())
     clean_name = clean_name.encode('ascii', 'ignore').decode('ascii')
-    clean_name = re.sub(r'[^a-z0-9]', '', clean_name)
+    
+    # Extract key words from business name
+    # Remove common words that don't go in domains
+    stop_words = {'le', 'la', 'les', 'de', 'du', 'des', 'hotel', 'restaurant', 'cafe', 'riad', 'spa'}
+    words = re.findall(r'[a-z]+', clean_name)
+    meaningful_words = [w for w in words if w not in stop_words and len(w) > 2]
+    
+    # Get the main business name (without category words)
+    main_name = ''
+    if meaningful_words:
+        main_name = meaningful_words[0]  # Usually the main identifier
+        if len(meaningful_words) > 1:
+            # For multi-word names like "La Mamounia" -> "mamounia"
+            main_name = meaningful_words[-1] if meaningful_words[-1] not in ['hotel', 'restaurant', 'cafe'] else meaningful_words[0]
     
     # Clean category
     clean_category = re.sub(r'[^a-z0-9]', '', category.lower()) if category else ''
     
     domains = []
     
-    if clean_name:
-        # Basic variations
+    if main_name:
+        # Pattern 1: Simple domain (most common)
         domains.extend([
-            f"{clean_name}.com",
-            f"{clean_name}.ma",  # Morocco TLD
-            f"{clean_name}marrakech.com",
-            f"{clean_name}morocco.com"
+            f"{main_name}.com",
+            f"{main_name}.ma",
+            f"www.{main_name}.com"
         ])
         
-        # Category combinations
-        if clean_category:
+        # Pattern 2: With hyphens (very common for multi-word names)
+        if len(meaningful_words) > 1:
+            hyphenated = '-'.join(meaningful_words)
             domains.extend([
-                f"{clean_category}{clean_name}.com",
-                f"{clean_name}{clean_category}.com",
-                f"{clean_category}{clean_name}.ma"
+                f"{hyphenated}.com",
+                f"www.{hyphenated}.com",
+                f"{hyphenated}.ma"
             ])
         
-        # Common prefixes for Morocco
+        # Pattern 3: Category + name combinations
+        if clean_category:
+            domains.extend([
+                f"{clean_category}{main_name}.com",
+                f"{main_name}{clean_category}.com",
+                f"{clean_category}-{main_name}.com",
+                f"{main_name}-{clean_category}.com"
+            ])
+        
+        # Pattern 4: Specific patterns for Morocco
         domains.extend([
-            f"restaurant{clean_name}.com",
-            f"cafe{clean_name}.com",
-            f"hotel{clean_name}.com",
-            f"{clean_name}restaurant.com"
+            f"hotel{main_name}.com",
+            f"riad{main_name}.com", 
+            f"restaurant{main_name}.com",
+            f"{main_name}hotel.com",
+            f"{main_name}marrakech.com",
+            f"{main_name}morocco.com"
         ])
+        
+        # Pattern 5: Full business name variations (for cases like "Riad Yasmine")
+        full_clean = re.sub(r'[^a-z0-9]', '', business_name.lower())
+        if full_clean != main_name:
+            domains.extend([
+                f"{full_clean}.com",
+                f"www.{full_clean}.com",
+                f"{full_clean}.ma"
+            ])
     
-    return list(set(domains))
+    # Remove duplicates and clean
+    unique_domains = []
+    seen = set()
+    
+    for domain in domains:
+        # Additional cleaning
+        domain = domain.replace('www.www.', 'www.')
+        if domain not in seen and len(domain) > 6:  # Minimum reasonable length
+            seen.add(domain)
+            unique_domains.append(domain)
+    
+    return unique_domains[:12]  # Return top 12 variations
 
 def enhanced_website_search(business_name: str, category: str = '', config: Dict[str, Any] = None) -> Dict[str, Any]:
     """
@@ -1107,3 +1161,219 @@ def extract_title_from_content(content: str) -> str:
     except:
         pass
     return ''
+
+def generate_possible_domains(business_name: str, category: str = "") -> List[str]:
+    """
+    Generate possible domain variations for a business.
+    Now includes hyphenated variations (key for cases like Riad Yasmine -> riad-yasmine.com)
+    
+    Args:
+        business_name: The business name
+        category: Business category (restaurant, hotel, etc.)
+    
+    Returns:
+        List of possible domain names
+    """
+    domains = []
+    
+    # Clean the business name
+    clean_name = clean_domain_name(business_name)
+    clean_category = clean_domain_name(category) if category else ""
+    
+    if not clean_name:
+        return domains
+    
+    # Get individual words for hyphenated versions
+    words = extract_words_for_domain(business_name)
+    
+    # Basic domain variations (no spaces, clean)
+    domains.extend([
+        f"{clean_name}.com",
+        f"{clean_name}.ma",
+        f"{clean_name}.co.ma",
+        f"{clean_name}.net",
+        f"{clean_name}.org"
+    ])
+    
+    # IMPORTANT: Add hyphens between words (this fixes Riad Yasmine case)
+    if len(words) > 1:
+        hyphenated = '-'.join(words)
+        domains.extend([
+            f"{hyphenated}.com",
+            f"{hyphenated}.ma", 
+            f"{hyphenated}.co.ma",
+            f"{hyphenated}.net",
+            f"{hyphenated}.org"
+        ])
+    
+    # Category + name combinations
+    if clean_category and words:
+        # Category with hyphenated name
+        domains.extend([
+            f"{clean_category}-{'-'.join(words)}.com",
+            f"{'-'.join(words)}-{clean_category}.com",
+            f"{clean_category}{clean_name}.com",
+            f"{clean_name}{clean_category}.com"
+        ])
+    
+    # Morocco-specific patterns
+    if words:
+        base_name = '-'.join(words)
+        domains.extend([
+            f"{base_name}-marrakech.com",
+            f"{base_name}-marrakesh.com", 
+            f"{base_name}-morocco.com",
+            f"marrakech-{base_name}.com",
+            f"marrakesh-{base_name}.com"
+        ])
+    
+    # Remove duplicates and return
+    return list(dict.fromkeys(domains))
+
+def extract_words_for_domain(name: str) -> List[str]:
+    """
+    Extract clean words from business name for domain generation.
+    
+    Args:
+        name: Business name
+        
+    Returns:
+        List of clean words
+    """
+    if not name:
+        return []
+    
+    import re
+    
+    # Convert to lowercase
+    clean = name.lower()
+    
+    # Remove common business prefixes/words but keep important words
+    remove_words = [
+        'restaurant', 'hotel', 'cafe', 'café', 'spa', 'shop', 'boutique',
+        'le', 'la', 'les', 'du', 'de', 'des', 'et', 'and', 'the', '&', 'chez'
+    ]
+    
+    # Extract words (letters only)
+    words = re.findall(r'[a-zA-Z]+', clean)
+    
+    # Filter out common words but keep meaningful ones
+    filtered_words = []
+    for word in words:
+        word_clean = re.sub(r'[^a-z]', '', word.lower())
+        if (word_clean and 
+            word_clean not in remove_words and 
+            len(word_clean) > 1):
+            filtered_words.append(word_clean)
+    
+    return filtered_words
+
+def clean_domain_name(name: str) -> str:
+    """
+    Clean a name for domain generation (no spaces/hyphens version).
+    
+    Args:
+        name: The name to clean
+    
+    Returns:
+        Cleaned name suitable for domain (concatenated)
+    """
+    words = extract_words_for_domain(name)
+    return ''.join(words)
+
+def check_domain_exists(domain: str, timeout: int = 3) -> Dict[str, Any]:
+    """
+    Check if a domain exists and is accessible.
+    
+    Args:
+        domain: Domain to check
+        timeout: Request timeout in seconds
+        
+    Returns:
+        Dictionary with check results
+    """
+    result = {
+        'domain': domain,
+        'exists': False,
+        'accessible': False,
+        'status_code': None,
+        'final_url': None,
+        'error': None
+    }
+    
+    try:
+        # Add protocol if missing
+        if not domain.startswith(('http://', 'https://')):
+            test_url = f"https://{domain}"
+        else:
+            test_url = domain
+        
+        # Make request with timeout
+        response = requests.get(
+            test_url,
+            timeout=timeout,
+            allow_redirects=True,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        )
+        
+        result.update({
+            'exists': True,
+            'accessible': response.status_code == 200,
+            'status_code': response.status_code,
+            'final_url': response.url
+        })
+        
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        result['error'] = str(e)
+        return result
+
+def enhanced_website_detection(business_name: str, category: str = "", max_domains: int = 15) -> Dict[str, Any]:
+    """
+    Enhanced website detection using domain generation and checking.
+    
+    Args:
+        business_name: Business name
+        category: Business category
+        max_domains: Maximum domains to check
+        
+    Returns:
+        Detection results
+    """
+    result = {
+        'website_found': False,
+        'website_url': None,
+        'domains_checked': [],
+        'domains_found': [],
+        'detection_method': 'domain_generation'
+    }
+    
+    # Generate possible domains
+    possible_domains = generate_possible_domains(business_name, category)
+    
+    # Limit domains to check
+    domains_to_check = possible_domains[:max_domains]
+    result['domains_checked'] = domains_to_check
+    
+    logger.info(f"Checking {len(domains_to_check)} domains for '{business_name}'")
+    
+    # Check each domain
+    for domain in domains_to_check:
+        logger.debug(f"Checking domain: {domain}")
+        
+        check_result = check_domain_exists(domain)
+        
+        if check_result['accessible']:
+            result['website_found'] = True
+            result['website_url'] = check_result['final_url']
+            result['domains_found'].append(domain)
+            logger.info(f"✅ Found website for '{business_name}': {domain}")
+            break
+        
+        # Small delay to be respectful
+        time.sleep(0.1)
+    
+    return result

@@ -495,40 +495,59 @@ def search_specific_business(business_name: str, location: str, phone: str = Non
 def calculate_lead_score(business: Dict[str, Any]) -> int:
     """
     Calculate lead score for a business based on various factors.
+    Updated to prioritize low-rated businesses (more likely to lack websites).
+    
+    Key insight: Businesses with 2-3 stars are most likely to not have websites
+    and represent the highest opportunity for web design services.
     
     Args:
         business: Business dictionary
     
     Returns:
-        Lead score (0-100)
+        Lead score from 0-100 (higher = better opportunity)
     """
     score = 0
     
     try:
-        # No website = higher score (primary factor)
-        if not business.get('website'):
-            score += 40
+        # Base score
+        score = 20
         
-        # Rating factor (20 points max)
+        # No website = HIGH opportunity (30 points)
+        if not business.get('website'):
+            score += 30
+            logger.debug(f"High opportunity: {business.get('name')} has no website")
+        else:
+            # Has website = lower priority
+            score -= 10
+        
+        # Rating factor - LOW RATINGS ARE HIGH OPPORTUNITY!
+        # Businesses with 2-3 stars are most likely to lack websites
         rating = business.get('rating', 0)
-        if rating >= 4.5:
-            score += 20
-        elif rating >= 4.0:
-            score += 15
-        elif rating >= 3.5:
+        if rating == 0:
+            # No rating = unknown, medium opportunity
             score += 10
-        elif rating >= 3.0:
-            score += 5
+        elif 2.0 <= rating <= 3.5:
+            # LOW RATING = HIGH OPPORTUNITY (businesses likely need help)
+            score += 25
+            logger.debug(f"High opportunity: {business.get('name')} has low rating {rating}")
+        elif 3.5 < rating <= 4.0:
+            # Medium rating = medium opportunity
+            score += 15
+        elif rating > 4.0:
+            # High rating = lower opportunity (probably already successful)
+            score += 8
         
         # Review count factor (15 points max)
         review_count = business.get('review_count', 0)
-        if review_count >= 100:
+        if 0 < review_count <= 20:
+            # Few reviews = higher opportunity (less established online)
             score += 15
-        elif review_count >= 50:
-            score += 10
-        elif review_count >= 20:
+        elif 20 < review_count <= 50:
+            score += 12
+        elif 50 < review_count <= 100:
             score += 8
-        elif review_count >= 10:
+        elif review_count > 100:
+            # Many reviews = lower opportunity (already established)
             score += 5
         
         # Has phone number (10 points)
@@ -537,10 +556,15 @@ def calculate_lead_score(business: Dict[str, Any]) -> int:
         
         # Category factor (15 points max)
         category = business.get('category', '').lower()
-        high_value_categories = ['restaurant', 'hotel', 'spa', 'cafe', 'shop']
-        if any(cat in category for cat in high_value_categories):
+        high_opportunity_categories = ['restaurant', 'hotel', 'spa', 'cafe', 'shop', 'service']
+        if any(cat in category for cat in high_opportunity_categories):
             score += 15
         else:
+            score += 5
+        
+        # Location factor - businesses in tourist areas have higher potential
+        address = business.get('address', '').lower()
+        if any(area in address for area in ['medina', 'gueliz', 'hivernage', 'majorelle']):
             score += 5
             
     except Exception as e:
@@ -648,40 +672,32 @@ def update_business_with_enhanced_website_check(business: Dict[str, Any]) -> Dic
     Update business data with enhanced website detection.
     
     Args:
-        business: Business dictionary
-    
+        business: Business data dictionary
+        
     Returns:
-        Updated business dictionary with website information
+        Updated business data with website information
     """
-    if not business.get('name'):
-        return business
+    from website_checker import enhanced_website_detection
     
-    # Run enhanced website search
-    website_result = enhanced_website_search(
-        business_name=business['name'],
-        category=business.get('category', ''),
-        config={}
+    # Run enhanced website detection
+    detection_result = enhanced_website_detection(
+        business_name=business.get('name', ''),
+        category=business.get('category', '')
     )
     
-    # Update business data
-    if website_result['website_found']:
-        business['website'] = website_result['website_url']
-        business['website_quality_score'] = website_result['quality_score']
-        business['website_detection_method'] = 'enhanced_ai'
-        business['website_domains_checked'] = website_result['domains_checked']
-        business['website_title'] = website_result['details'].get('title', '')
-        
-        # Adjust lead score - businesses with websites have lower priority
-        if business.get('lead_score', 0) > 0:
-            business['lead_score'] = max(business['lead_score'] - 20, 0)
+    # Update business data based on results
+    if detection_result['website_found']:
+        business['website'] = detection_result['website_url']
+        business['website_detection_method'] = 'enhanced_domain_check'
+        # Reduce lead score since they have a website
+        business['lead_score'] = max(30, business.get('lead_score', 50) - 20)
     else:
-        # No website found - high opportunity
         business['website'] = ''
-        business['website_detection_method'] = 'enhanced_ai'
-        business['website_domains_checked'] = website_result['domains_checked']
-        
-        # Boost lead score for businesses without websites
-        if business.get('lead_score', 0) > 0:
-            business['lead_score'] = min(business['lead_score'] + 15, 100)
+        # Increase lead score since no website found
+        business['lead_score'] = min(100, business.get('lead_score', 50) + 15)
+    
+    # Add detection metadata
+    business['website_domains_checked'] = detection_result['domains_checked']
+    business['website_domains_found'] = detection_result['domains_found']
     
     return business
