@@ -1,6 +1,64 @@
 # Quick Start Guide
 
-## Super Easy Setup
+## 🚀 NEW: Quick Search Tools (Organized!)
+
+All quick search tools are now in the `quick_search/` folder for better organization.
+
+### Step 1: Quick Commands
+```powershell
+# List all supported cities (10 major Morocco cities)
+python quick_search/quick_all_cities_search.py --list-cities
+
+# Search specific city (test mode - hundreds of results)
+python quick_search/quick_all_cities_search.py --city marrakesh --search-size test
+
+# Search all cities at once (test mode)
+python quick_search/quick_all_cities_search.py --all-cities --search-size test
+
+# Interactive mode (easiest - guided menus)
+python quick_search/quick_all_cities_search.py --interactive
+```
+
+### Step 2: Or Use the Quick Launcher
+```powershell
+# Shows all available commands with examples
+quick_launcher.bat
+```
+
+## 🎯 What Each Command Does
+
+### `--list-cities`
+- Shows all 10 supported Morocco cities with Arabic names
+- Displays descriptions, population, and priority info
+- Includes: Marrakesh, Casablanca, Rabat, Fez, Tangier, Agadir, Meknes, Oujda, Tetouan, Essaouira
+
+### `--city [city_name] --search-size [size]`
+- **test**: Hundreds of results (quick)
+- **standard**: Thousands of results (comprehensive)
+- **mega**: Maximum scale (massive)
+
+### `--all-cities --search-size [size]`
+- Searches all 10 Morocco cities simultaneously
+- Results organized by city in separate folders
+- Lead scoring and opportunity analysis for each city
+
+### `--interactive`
+- Menu-driven interface with guided options
+- Best for beginners or complex searches
+- Step-by-step process
+
+## 📁 Results Organization
+All search results are saved in: `results/cities/{city_name}/searches/`
+
+Each city has its own organized structure:
+- Analytics folder
+- Reports folder  
+- Exports folder
+- Search results with timestamps
+
+## 🏛️ Legacy Methods (Still Available)
+
+### Super Easy Setup (Original)
 
 ### Step 1: Run Setup
 ```bash
