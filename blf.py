@@ -27,17 +27,11 @@ from pathlib import Path
 
 def main():
     """Main launcher function that delegates to main.py"""
-    # Get the directory where this script is located (scripts folder)
+    # Get the directory where this script is located
     script_dir = Path(__file__).parent.absolute()
     
-    # Get the project root directory (parent of scripts folder)
-    project_root = script_dir.parent
-    
     # Add the project root to Python path
-    sys.path.insert(0, str(project_root))
-    
-    # Change working directory to project root
-    os.chdir(project_root)
+    sys.path.insert(0, str(script_dir))
     
     try:
         # Import and run the main CLI
@@ -46,8 +40,6 @@ def main():
     except ImportError as e:
         print(f"Error: Could not import main module: {e}")
         print("Please ensure you're running this from the Business Lead Finder root directory.")
-        print(f"Project root: {project_root}")
-        print(f"Python path: {sys.path[0]}")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\nOperation cancelled by user.")
