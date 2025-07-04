@@ -123,7 +123,7 @@ dmypy.json
 # Business Lead Finder Specific
 
 # API Keys and Configuration
-.env
+.env*
 *.env
 config.json
 secrets.json

@@ -50,9 +50,9 @@ def display_banner():
 ║                  BUSINESS LEAD FINDER                        ║
 ║          Find businesses without websites in Morocco         ║
 ║                                                              ║
-║  🎯 Search local businesses  📊 Generate reports            ║
-║  🔍 Check website presence   📧 Create email templates      ║
-║  💼 Score potential leads    📈 Track ROI                   ║
+║  🎯 Search local businesses  📊 Generate reports             ║
+║  🔍 Check website presence   📧 Create email templates       ║
+║  💼 Score potential leads    📈 Track ROI                    ║
 ╚══════════════════════════════════════════════════════════════╝
     """
     print(banner)

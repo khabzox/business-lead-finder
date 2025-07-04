@@ -174,12 +174,19 @@ def handle_report_command(args: argparse.Namespace, config: Dict[str, Any]) -> b
     console.print(f"[blue]📊 Generating report from: {args.input}[/blue]")
     
     try:
+        # Load data from input file
+        from utils import load_json_data
+        leads_data = load_json_data(args.input)
+        
+        if not leads_data:
+            console.print(f"[red]❌ No data found in {args.input}[/red]")
+            return False
+        
+        # Generate report
         report_path = generate_report(
-            input_file=args.input,
-            output_file=args.output,
-            format=args.format,
-            template=args.template,
-            config=config
+            leads_data=leads_data,
+            output_path=args.output,
+            format_type=args.format
         )
         
         console.print(f"[green]✅ Report generated: {report_path}[/green]")

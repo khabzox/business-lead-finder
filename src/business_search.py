@@ -12,6 +12,7 @@ import json
 import random
 import re
 from urllib.parse import urlencode, quote
+from datetime import datetime
 
 from config.settings import SEARCH_CONFIG, API_KEYS
 from utils import clean_phone_number, validate_business_data, rate_limit
@@ -63,39 +64,9 @@ def search_businesses_all_sources(
     except Exception as e:
         logger.error(f"OpenStreetMap search failed: {e}")
     
-    # Source 2: Foursquare (Free tier - 1000 requests/day)
-    if API_KEYS.get('foursquare_client_id'):
+    # Source 2: Foursquare API (Free tier - 950 requests/day)
+    if config and config.get('api_keys', {}).get('foursquare'):
         try:
-            foursquare_businesses = search_foursquare(query, location, max_results // 3)
-            all_businesses.extend(foursquare_businesses)
-            logger.info(f"Found {len(foursquare_businesses)} businesses from Foursquare")
-        except Exception as e:
-            logger.error(f"Foursquare search failed: {e}")
-    
-    # Source 3: SerpAPI (Free tier - 100 searches/month)
-    if API_KEYS.get('serpapi'):
-        try:
-            serp_businesses = search_serpapi(query, location, max_results // 3)
-            all_businesses.extend(serp_businesses)
-            logger.info(f"Found {len(serp_businesses)} businesses from SerpAPI")
-        except Exception as e:
-            logger.error(f"SerpAPI search failed: {e}")
-    
-    # Source 4: Web scraping fallback
-    try:
-        scraped_businesses = scrape_business_directories(query, location, max_results // 4)
-        all_businesses.extend(scraped_businesses)
-        logger.info(f"Found {len(scraped_businesses)} businesses from web scraping")
-    except Exception as e:
-        logger.error(f"Web scraping failed: {e}")
-    
-    # Remove duplicates and validate data
-    unique_businesses = remove_duplicate_businesses(all_businesses)
-    validated_businesses = [b for b in unique_businesses if validate_business_data(b)]
-    
-    logger.info(f"Total unique validated businesses found: {len(validated_businesses)}")
-    
-    return validated_businesses[:max_results]
             foursquare_businesses = search_foursquare(query, location, max_results // 3, config)
             all_businesses.extend(foursquare_businesses)
             logger.info(f"Found {len(foursquare_businesses)} businesses from Foursquare")
@@ -553,3 +524,97 @@ def calculate_lead_score(business: Dict[str, Any]) -> int:
         score = 0
     
     return min(score, 100)
+
+def scrape_morocco_directories(query: str, location: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    """
+    Scrape Morocco business directories for additional leads.
+    
+    Args:
+        query: Business category or type
+        location: Location to search
+        max_results: Maximum number of results
+    
+    Returns:
+        List of business dictionaries
+    """
+    businesses = []
+    
+    try:
+        # This is a placeholder for web scraping functionality
+        # In a real implementation, you would scrape various Morocco business directories
+        # For now, return empty list to avoid errors
+        logger.info("Web scraping functionality placeholder - returning empty results")
+        return businesses
+    
+    except Exception as e:
+        logger.error(f"Error in web scraping: {e}")
+        return businesses
+
+def remove_duplicates(businesses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Remove duplicate businesses based on name and location.
+    
+    Args:
+        businesses: List of business dictionaries
+    
+    Returns:
+        List of unique business dictionaries
+    """
+    seen = set()
+    unique_businesses = []
+    
+    for business in businesses:
+        # Create a key for duplicate detection
+        name = business.get('name', '').lower().strip()
+        address = business.get('address', '').lower().strip()
+        phone = business.get('phone', '').strip()
+        
+        # Create composite key
+        key = f"{name}:{address}:{phone}"
+        
+        if key not in seen:
+            seen.add(key)
+            unique_businesses.append(business)
+    
+    logger.info(f"Removed {len(businesses) - len(unique_businesses)} duplicates")
+    return unique_businesses
+
+def enhance_business_data(businesses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Enhance business data with additional information and scoring.
+    
+    Args:
+        businesses: List of business dictionaries
+    
+    Returns:
+        List of enhanced business dictionaries
+    """
+    enhanced_businesses = []
+    
+    for business in businesses:
+        try:
+            # Add lead score
+            business['lead_score'] = calculate_lead_score(business)
+            
+            # Add timestamp
+            business['last_updated'] = datetime.now().isoformat()
+            
+            # Ensure all required fields exist
+            business.setdefault('name', 'Unknown Business')
+            business.setdefault('category', 'Unknown')
+            business.setdefault('address', '')
+            business.setdefault('phone', '')
+            business.setdefault('email', '')
+            business.setdefault('website', '')
+            business.setdefault('rating', 0)
+            business.setdefault('review_count', 0)
+            business.setdefault('source', 'unknown')
+            
+            enhanced_businesses.append(business)
+            
+        except Exception as e:
+            logger.error(f"Error enhancing business data: {e}")
+            # Add business anyway with minimal data
+            enhanced_businesses.append(business)
+    
+    return enhanced_businesses

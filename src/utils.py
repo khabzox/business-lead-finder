@@ -550,8 +550,22 @@ def performance_monitor(func):
         return result
     return wrapper
 
-# ...existing code...
-            logging.error(f"Error loading custom config: {e}")
+def load_custom_config(config_path: str) -> Dict[str, Any]:
+    """Load custom configuration from file."""
+    config = {}
+    try:
+        if config_path and os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                if config_path.endswith('.json'):
+                    config = json.load(f)
+                else:
+                    # Simple key=value format
+                    for line in f:
+                        if '=' in line and not line.strip().startswith('#'):
+                            key, value = line.strip().split('=', 1)
+                            config[key] = value
+    except Exception as e:
+        logging.error(f"Error loading custom config: {e}")
     
     return config
 
