@@ -88,7 +88,9 @@ class MassiveMarrakeshSearch:
     
     def __init__(self):
         self.results_dir = Path("results")
+        self.cities_dir = self.results_dir / "cities" / "marrakesh" / "searches"
         self.results_dir.mkdir(exist_ok=True)
+        self.cities_dir.mkdir(parents=True, exist_ok=True)
         self.setup_logging()
         self.total_businesses_found = 0
         self.categories_processed = 0
@@ -368,7 +370,7 @@ class MassiveMarrakeshSearch:
             # Save batch when it reaches batch_size
             if len(current_batch) >= batch_size:
                 batch_filename = f"{base_filename}_batch_{batch_number:03d}.json"
-                batch_path = self.results_dir / batch_filename
+                batch_path = self.cities_dir / batch_filename
                 
                 with open(batch_path, 'w', encoding='utf-8') as f:
                     json.dump({
@@ -391,7 +393,7 @@ class MassiveMarrakeshSearch:
         # Save remaining businesses in final batch
         if current_batch:
             batch_filename = f"{base_filename}_batch_{batch_number:03d}.json"
-            batch_path = self.results_dir / batch_filename
+            batch_path = self.cities_dir / batch_filename
             
             with open(batch_path, 'w', encoding='utf-8') as f:
                 json.dump({
@@ -409,7 +411,7 @@ class MassiveMarrakeshSearch:
             console.print(f"[green]Saved final batch {batch_number}: {len(current_batch):,} businesses[/green]")
         
         # Save summary file
-        summary_path = self.results_dir / f"{base_filename}_SUMMARY.json"
+        summary_path = self.cities_dir / f"{base_filename}_SUMMARY.json"
         summary = {
             'search_summary': {
                 'search_date': datetime.now().isoformat(),

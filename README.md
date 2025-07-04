@@ -98,6 +98,63 @@ blf restaurants marrakech
 python main.py restaurants marrakech
 ```
 
+## 🇲🇦 All Morocco Cities Support
+
+**NEW!** Search across ALL major Morocco cities with one command:
+
+### Quick All-Cities Search
+
+**Interactive Mode (Recommended)**
+```bash
+# Run with interactive menus
+quick_search.bat             # Windows batch
+quick_search.ps1             # PowerShell
+python quick_all_cities_search.py --interactive
+```
+
+**Command Line Mode**
+```bash
+# Search specific city
+quick_city.bat marrakesh                    # Standard search
+quick_city.bat casablanca mega             # MEGA search
+python quick_all_cities_search.py --city marrakesh
+
+# Search ALL cities at once
+search_all_cities.bat                       # All cities, standard size
+python quick_all_cities_search.py --all-cities --search-size mega
+```
+
+### Supported Cities
+
+🏙️ **All Major Morocco Cities:**
+- 🔴 **Marrakesh** - Tourist capital (Red City)
+- 💼 **Casablanca** - Economic capital (Business hub)  
+- 🏛️ **Rabat** - Political capital (Government seat)
+- 🏺 **Fez** - Cultural capital (Imperial city)
+- ⚓ **Tangier** - Northern gateway (Port city)
+- 🏖️ **Agadir** - Atlantic coast (Beach resort)
+- 🏰 **Meknes** - Imperial city (Historical center)
+- 🌍 **Oujda** - Eastern gateway (Border city)
+- 🎭 **Tetouan** - Northern cultural center
+- 🌊 **Essaouira** - Coastal gem (Windsurfing capital)
+
+### Search Sizes
+
+- **🧪 Test**: ~1,000 businesses per city (2-5 minutes)
+- **📊 Standard**: ~50,000 businesses per city (30-60 minutes)  
+- **🚀 MEGA**: ~200,000 businesses per city (2-4 hours)
+
+### Results Organization
+
+All results are automatically organized by city:
+```
+results/cities/
+├── marrakesh/searches/
+├── casablanca/searches/
+├── rabat/searches/
+└── [other cities]/searches/
+```
+
 ## 🖥️ CLI Commands Guide
 
 ### Simple Commands (After Setup)
